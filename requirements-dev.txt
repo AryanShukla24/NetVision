@@ -1,0 +1,4 @@
+# NetVision - Development and Testing Dependencies
+-r requirements.txt
+pytest>=7.4.0
+

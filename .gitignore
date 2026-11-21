@@ -1,0 +1,60 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Virtual Environments (do NOT ship machine-specific virtual environments)
+venv/
+.venv/
+env/
+ENV/
+
+# Environment variables, credentials, and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+credentials.json
+token.json
+secrets/
+
+# Distribution and packaging
+build/
+dist/
+*.spec
+installer/*.zip
+installer/*.exe
+*.exe
+*.egg-info/
+*.egg
+
+# Editor / OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Application logs and runtime output
+logs/
+*.log
+reports_output/
+.user_data/
+
+# User databases and runtime cache (preserve data/ template db)
+*.db
+*.db-wal
+*.db-shm
+!data/*.db
+
+# Testing & coverage artifacts
+test_results/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/

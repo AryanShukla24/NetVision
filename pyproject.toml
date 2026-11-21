@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netvision"
+version = "2.0.0"
+description = "NetVision - Smart Network Quality & Wi-Fi Coverage Analyzer"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "BTech CSE Academic Projects" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "Environment :: Win32 (MS Windows)",
+    "Topic :: System :: Networking :: Monitoring"
+]
+dependencies = [
+    "PySide6>=6.5.0",
+    "matplotlib>=3.7.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "reportlab>=4.0.0",
+    "requests>=2.31.0",
+    "urllib3>=2.0.0",
+    "speedtest-cli>=2.1.3",
+    "pillow>=10.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pyinstaller>=6.0.0"
+]
+
+[project.scripts]
+netvision = "netvision.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

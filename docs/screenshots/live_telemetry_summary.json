@@ -1,0 +1,211 @@
+{
+  "captured_at": "2026-11-18T10:42:27.309407",
+  "app_version": "2.0.0",
+  "db_path": "C:\\Users\\Mahaveer singh\\AppData\\Local\\NetVision\\database\\netvision.db",
+  "db_counts": {
+    "scan_sessions": 5,
+    "wifi_networks": 123,
+    "speed_tests": 2,
+    "latency_tests": 11,
+    "signal_logs": 300,
+    "locations": 5,
+    "experiment_runs": 5,
+    "app_settings": 0
+  },
+  "connected_interface": {
+    "interface_name": "Wi-Fi",
+    "description": "Realtek RTL8723DE 802.11b/g/n PCIe Adapter",
+    "state": "connected",
+    "ssid": "Airtel_maha_9259",
+    "bssid": "30:15:77:fc:ae:a6",
+    "radio_type": "802.11n",
+    "authentication": "WPA2-Personal",
+    "cipher": "CCMP",
+    "channel": 11,
+    "frequency_band": "2.4 GHz",
+    "signal_percent": 83,
+    "receive_rate_mbps": 72.2,
+    "transmit_rate_mbps": 72.2,
+    "ipv4_address": "192.168.1.9",
+    "gateway": "192.168.1.1",
+    "dns_servers": [
+      "8.8.8.8",
+      "8.8.4.4"
+    ]
+  },
+  "wifi_scan_count": 31,
+  "scan_error": null,
+  "channel_analysis_24": {
+    "band_name": "2.4 GHz",
+    "channels": [
+      {
+        "channel": 1,
+        "count": 4,
+        "networks": [
+          "Rahul_5G",
+          "Rahul2.4",
+          "Vijay_Rai_EXT",
+          "Vijay_Rai"
+        ],
+        "avg_signal": 36.8,
+        "congestion": "Moderate",
+        "co_channel_score": 5.47
+      },
+      {
+        "channel": 2,
+        "count": 1,
+        "networks": [
+          "Zareen 2.4"
+        ],
+        "avg_signal": 9.0,
+        "congestion": "Low",
+        "co_channel_score": 1.09
+      },
+      {
+        "channel": 3,
+        "count": 2,
+        "networks": [
+          "TP-Link_DE52",
+          "Taxconsultancy"
+        ],
+        "avg_signal": 10.0,
+        "congestion": "Low",
+        "co_channel_score": 2.2
+      },
+      {
+        "channel": 6,
+        "count": 9,
+        "networks": [
+          "Airtel_Khetry_wifi",
+          "YASH_5G",
+          "Airtel_Hmm...",
+          "Airtel_rohi_2587",
+          "Airtel_Shiven",
+          "Airtel_Neha",
+          "IOT5-M2-359820003",
+          "Airtel_sidd_2754",
+          "sumit1510 4G"
+        ],
+        "avg_signal": 26.3,
+        "congestion": "Heavy",
+        "co_channel_score": 11.37
+      },
+      {
+        "channel": 7,
+        "count": 1,
+        "networks": [
+          "Airtel_Hair heaven salon"
+        ],
+        "avg_signal": 27.0,
+        "congestion": "Low",
+        "co_channel_score": 1.27
+      },
+      {
+        "channel": 9,
+        "count": 1,
+        "networks": [
+          "<Hidden SSID>"
+        ],
+        "avg_signal": 7.0,
+        "congestion": "Low",
+        "co_channel_score": 1.07
+      },
+      {
+        "channel": 10,
+        "count": 2,
+        "networks": [
+          "Avenue@158-159",
+          "Sehrawat pg_2.4G"
+        ],
+        "avg_signal": 8.0,
+        "congestion": "Low",
+        "co_channel_score": 2.16
+      },
+      {
+        "channel": 11,
+        "count": 11,
+        "networks": [
+          "Airtel_maha_9259",
+          "FTTH",
+          "www.excitel.com",
+          "Tenda_DFA030",
+          "Airtel_Housr",
+          "Airtel_pank_6460",
+          "Airtel_Housr",
+          "Airtel_akas_1500",
+          "Yogesh's S23",
+          "Airtel_amit_5955",
+          "Airtel_pHSasha"
+        ],
+        "avg_signal": 19.9,
+        "congestion": "Heavy",
+        "co_channel_score": 13.19
+      }
+    ],
+    "recommended_channel": 1,
+    "recommended_score": 7.39,
+    "reasoning": "Channel 1 is recommended as having the lowest cumulative co-channel and adjacent-channel overlap score (7.4, 4 direct APs) among the non-overlapping 2.4 GHz channels (1, 6, 11)."
+  },
+  "channel_analysis_5": {
+    "band_name": "5 GHz",
+    "channels": [],
+    "recommended_channel": null,
+    "recommended_score": null,
+    "reasoning": "No 5 GHz networks detected in range."
+  },
+  "live_latency_test": {
+    "target_host": "8.8.8.8",
+    "ping_count": 6,
+    "min_rtt_ms": 7.0,
+    "max_rtt_ms": 32.0,
+    "avg_rtt_ms": 12.0,
+    "jitter_ms": 5.8,
+    "packet_loss_percent": 0.0,
+    "method": "ICMP",
+    "status": "completed"
+  },
+  "latest_speed_test": {
+    "download_mbps": 47.35,
+    "upload_mbps": 33.3,
+    "ping_ms": 28.4,
+    "jitter_ms": 2.53,
+    "duration_sec": 3.88,
+    "server_name": "Cloudflare Global Edge (Anycast CDN)",
+    "network_ssid": "Airtel_maha_9259",
+    "location_label": "Cafe",
+    "timestamp": "2026-11-17T18:22:43.591992",
+    "status": "completed",
+    "error_message": "",
+    "id": 2
+  },
+  "signal_stability": {
+    "mean": 83.0,
+    "std_dev": 0.0,
+    "min": 83,
+    "max": 83,
+    "range": 0,
+    "stability_label": "Very Stable"
+  },
+  "locations": [
+    "Cafe",
+    "Classroom",
+    "College Library",
+    "Home",
+    "Office"
+  ],
+  "experiment_runs_count": 5,
+  "captured_files": [
+    "01_dashboard.png",
+    "02_wifi_scanner.png",
+    "03_signal_analyzer.png",
+    "04_speed_test.png",
+    "05_latency_monitor.png",
+    "06_channel_analyzer.png",
+    "07_history_analytics.png",
+    "08_location_comparison.png",
+    "09_academic_experiment.png",
+    "10_audit_reports.png",
+    "11_settings.png",
+    "12_about_netvision.png"
+  ]
+}
