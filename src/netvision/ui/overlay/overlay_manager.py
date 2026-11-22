@@ -167,8 +167,12 @@ class OverlayManager(QObject):
         self.config.master_locked = locked
         self.config.save()
         for widget in self.widgets.values():
-            widget.set_master_locked(locked)
+            widget.set_editing_mode(not locked)
         self.config_updated.emit()
+
+    def set_editing_mode(self, editing: bool):
+        """Toggles on-desktop interactive editing vs locked click-through mode."""
+        self.set_master_locked(not editing)
 
     def _on_widget_moved(self, stat_id: str, x: int, y: int):
         if stat_id in self.config.stats:

@@ -238,3 +238,33 @@ class DashboardPage(QWidget):
             self.card_latency.set_value("Not tested", "Run latency test to measure")
             self.card_jitter.set_value("Not tested", "")
             self.card_loss.set_value("Not tested", "")
+
+    def update_live_telemetry(self, snapshot: dict):
+        """Consumes centralized telemetry from StatisticsCollector."""
+        # Live Wi-Fi signal
+        wifi = snapshot.get("wifi_signal", {})
+        val = wifi.get("val")
+        disp = wifi.get("display", "")
+        if val is not None:
+            status = "Good" if val >= 50 else ("Fair" if val >= 30 else "Poor")
+            self.card_signal.set_value(str(int(val)), f"Live RF: {disp}")
+            self.status_pill.setStatus(status)
+        elif "Ethernet" in disp:
+            self.card_signal.set_value("Wired", "Ethernet connection active")
+            self.status_pill.setStatus("Good")
+
+        # Live Ping & Jitter
+        ping = snapshot.get("ping", {})
+        ping_val = ping.get("val")
+        if ping_val is not None and self.card_latency.value_label.text() in ("--", "Not tested", "No data"):
+            self.card_latency.set_value(f"{ping_val:.1f}", "Live ICMP gateway")
+
+        jitter = snapshot.get("jitter", {})
+        jit_val = jitter.get("val")
+        if jit_val is not None and jit_val > 0 and self.card_jitter.value_label.text() in ("--", "Not tested", "No data"):
+            self.card_jitter.set_value(f"{jit_val:.1f}", "RFC 3550 interarrival jitter")
+
+        loss = snapshot.get("packet_loss", {})
+        loss_val = loss.get("val")
+        if loss_val is not None and self.card_loss.value_label.text() in ("--", "Not tested", "No data"):
+            self.card_loss.set_value(f"{loss_val:.1f}", "Probe window loss")

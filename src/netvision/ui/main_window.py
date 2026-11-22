@@ -237,6 +237,13 @@ class MainWindow(QMainWindow):
         self.page_dashboard.set_auto_refresh_active(index == 0 and not self._closing)
 
         # Trigger passive view refreshes on visit (never spawn blocking OS scans on tab click)
+        if index == 0:  # Dashboard
+            if not self.stats_collector.is_running:
+                self.stats_collector.start(2000)
+        elif not self.overlay_config.master_enabled:
+            # If overlay is not running and user navigated away from dashboard, pause collector to save CPU
+            self.stats_collector.stop()
+
         if index == 5:  # Channel Analyzer
             self._run_channel_analysis(trigger_scan_if_empty=False)
         elif index == 6:  # History
@@ -250,9 +257,10 @@ class MainWindow(QMainWindow):
 
     def _wire_signals(self):
         """Connects signals between page widgets, workers, and database."""
-        # Dashboard
+        # Dashboard & Centralized Telemetry Hub
         self.page_dashboard.request_refresh.connect(self.refresh_dashboard_data)
         self.page_dashboard.request_quick_test.connect(self._run_quick_test)
+        self.stats_collector.stats_updated.connect(self.page_dashboard.update_live_telemetry)
 
         # Scanner
         self.page_scanner.request_scan.connect(self.start_wifi_scan)
@@ -314,6 +322,10 @@ class MainWindow(QMainWindow):
         if stat_id == "master":
             self.overlay_manager.toggle_overlay()
             self.page_settings.chk_master_enabled.setChecked(self.overlay_config.master_enabled)
+        elif stat_id == "lock":
+            new_locked = not self.overlay_config.master_locked
+            self.overlay_manager.set_master_locked(new_locked)
+            self.page_settings.chk_master_lock.setChecked(new_locked)
         else:
             self.overlay_manager.toggle_stat_visibility(stat_id)
             if stat_id in self.page_settings.vis_checkboxes:

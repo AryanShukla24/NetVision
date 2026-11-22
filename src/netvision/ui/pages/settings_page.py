@@ -264,7 +264,8 @@ class SettingsPage(QWidget):
         self.chk_master_enabled.toggled.connect(self._on_master_enabled_toggled)
         grid.addWidget(self.chk_master_enabled, 0, 0, 1, 2)
 
-        self.chk_master_lock = QCheckBox("Lock All Widget Positions (Prevent accidental drags)")
+        self.chk_master_lock = QCheckBox("Lock All Widgets (100% Click-Through in Games)")
+        self.chk_master_lock.setToolTip("When locked, mouse clicks pass directly through to games underneath without interference. Uncheck to drag and resize widgets on desktop.")
         self.chk_master_lock.setChecked(self.config.master_locked)
         self.chk_master_lock.toggled.connect(self._on_master_lock_toggled)
         grid.addWidget(self.chk_master_lock, 0, 2, 1, 2)
