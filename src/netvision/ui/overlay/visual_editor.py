@@ -1,30 +1,35 @@
 """
-NetVision - Visual Overlay Desktop Editor
-Interactive simulated desktop canvas allowing users to visually reposition
-and resize floating statistic widgets with alignment guides, edge snapping,
-properties panel, undo/redo, and isolated edit/preview states.
+NetVision - Real Desktop Overlay Drag-and-Drop Visual Editor
+Provides an interactive canvas over the user's authentic Windows desktop wallpaper
+and visible windows. Supports 8-point resizing, edge snapping, dynamic alignment
+guides, multi-monitor geometry, zoom controls, undo/redo history, and real-time
+bidirectional inspector synchronization.
 """
 
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Any, Optional, Tuple, List
 import copy
 import logging
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QGridLayout, QSpinBox, QComboBox, QCheckBox,
-    QSlider, QColorDialog, QSplitter, QScrollArea, QGroupBox,
-    QApplication
+    QFrame, QGridLayout, QSpinBox, QSlider, QCheckBox, QComboBox,
+    QScrollArea, QSplitter, QColorDialog, QTableWidget, QTableWidgetItem,
+    QStackedWidget, QButtonGroup
 )
-from PySide6.QtCore import Qt, QPoint, QRect, Signal, QSize, QTimer
+from PySide6.QtCore import Qt, Signal, QRect, QPoint, QSize, QTimer
 from PySide6.QtGui import (
-    QPainter, QPen, QBrush, QColor, QFont, QMouseEvent,
-    QCursor, QPaintEvent, QGuiApplication, QPixmap, QScreen
+    QPainter, QColor, QPen, QBrush, QFont, QPixmap, QMouseEvent,
+    QGuiApplication, QKeySequence, QShortcut
 )
 
 from netvision.config import COLORS
 from netvision.core.overlay_config import (
-    OverlayConfig, StatItemConfig, DisplayMode, get_default_stats_catalog
+    OverlayConfig, DisplayMode, StatItemConfig, get_default_stats_catalog
 )
-from netvision.ui.overlay.mini_graph import MiniGraphWidget
+from netvision.ui.components.icons import get_icon
+from netvision.ui.overlay.desktop_capture import (
+    capture_desktop_preview, get_available_monitors
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +46,11 @@ HANDLE_L = 8
 HANDLE_SIZE = 8
 
 
-class SimulatedDesktopCanvas(QWidget):
+class InteractiveDesktopCanvas(QWidget):
     """
-    Renders a scaled simulation of the user's actual desktop workspace.
-    Widgets appear at their true proportional coordinates and can be
-    interactively clicked, dragged, and resized with 8-point handles.
+    Renders the user's authentic desktop wallpaper / live screen capture with
+    scaled overlay widgets. Supports selection, dragging, 8-point resizing,
+    edge snapping, alignment guidelines, and zoom factor scaling.
     """
 
     widget_selected = Signal(str)
@@ -57,7 +62,7 @@ class SimulatedDesktopCanvas(QWidget):
         self.res_w, self.res_h = screen_res
         self.snap_to_edges = True
         self.show_guides = True
-        self.live_telemetry_active = True
+        self.zoom_factor = 1.0  # 1.0 = Fit to window; > 1.0 = zoomed
 
         self.selected_stat_id: Optional[str] = None
         self._hovered_stat_id: Optional[str] = None
@@ -66,22 +71,41 @@ class SimulatedDesktopCanvas(QWidget):
         self._active_handle = HANDLE_NONE
         self._is_dragging = False
         self._drag_start_screen = QPoint()
-        self._orig_widget_rect = QRect()  # In true desktop coordinates
+        self._orig_widget_rect = QRect()  # In desktop coordinates
 
         # Alignment guides: list of (is_vertical: bool, desktop_coord: int)
         self._active_guides: List[Tuple[bool, int]] = []
 
-        # Latest telemetry snapshot cache for live preview
-        self._telemetry_cache: Dict[str, Any] = {}
-
         # Real desktop background capture pixmap
         self.desktop_pixmap: Optional[QPixmap] = None
+        self.capture_status = "Resolving desktop..."
+
+        # Live telemetry preview cache
+        self._telemetry_cache: Dict[str, Any] = {
+            "fps": {"display": "60 FPS", "val": 60.0},
+            "cpu": {"display": "18.4%", "val": 18.4},
+            "gpu": {"display": "24.1%", "val": 24.1},
+            "ram": {"display": "6.2 GB", "val": 6.2},
+            "net_io": {"display": "4.8 MB/s", "val": 4.8},
+            "wifi_signal": {"display": "84%", "val": 84.0},
+            "ping": {"display": "14 ms", "val": 14.0},
+            "jitter": {"display": "1.8 ms", "val": 1.8},
+            "packet_loss": {"display": "0.0%", "val": 0.0},
+            "download_speed": {"display": "94.2 Mbps", "val": 94.2},
+            "upload_speed": {"display": "42.0 Mbps", "val": 42.0},
+        }
 
         self.setMouseTracking(True)
         self.setMinimumSize(480, 280)
+        self.setFocusPolicy(Qt.StrongFocus)
 
-    def set_desktop_pixmap(self, pixmap: Optional[QPixmap]):
+    def set_config(self, config: OverlayConfig):
+        self.config = config
+        self.update()
+
+    def set_desktop_pixmap(self, pixmap: Optional[QPixmap], status_desc: str = ""):
         self.desktop_pixmap = pixmap
+        self.capture_status = status_desc or "Live Desktop"
         self.update()
 
     def set_resolution(self, res_w: int, res_h: int):
@@ -89,23 +113,23 @@ class SimulatedDesktopCanvas(QWidget):
         self.res_h = max(480, res_h)
         self.update()
 
-    def set_config(self, config: OverlayConfig):
-        self.config = config
+    def set_zoom(self, factor: float):
+        self.zoom_factor = max(0.4, min(2.5, factor))
         self.update()
 
     def get_desktop_rect(self) -> QRect:
         """Calculates centered, aspect-ratio-preserved desktop preview bounds."""
         cw, ch = self.width(), self.height()
-        pad = 6  # Maximized preview workspace
+        pad = 8
         avail_w = max(100, cw - (pad * 2))
         avail_h = max(100, ch - (pad * 2))
 
         aspect = self.res_w / self.res_h
         if (avail_w / avail_h) > aspect:
-            h = avail_h
+            h = int(avail_h * self.zoom_factor)
             w = int(h * aspect)
         else:
-            w = avail_w
+            w = int(avail_w * self.zoom_factor)
             h = int(w / aspect)
 
         x = (cw - w) // 2
@@ -130,13 +154,6 @@ class SimulatedDesktopCanvas(QWidget):
         dy = int((cy - dr.y()) / scale_y)
         return dx, dy
 
-    def canvas_to_desktop_size(self, dr: QRect, cw: int, ch: int) -> Tuple[int, int]:
-        scale_x = dr.width() / self.res_w
-        scale_y = dr.height() / self.res_h
-        dw = int(cw / scale_x)
-        dh = int(ch / scale_y)
-        return dw, dh
-
     def _get_widget_canvas_rect(self, dr: QRect, stat_id: str) -> Optional[QRect]:
         item = self.config.stats.get(stat_id)
         if not item or item.mode == DisplayMode.DONT_SHOW:
@@ -159,15 +176,15 @@ class SimulatedDesktopCanvas(QWidget):
             HANDLE_L: QRect(r.left() - hs, r.center().y() - hs, s, s),
         }
 
-    def _cursor_for_handle(self, handle: int) -> Qt.CursorShape:
-        if handle in (HANDLE_TL, HANDLE_BR):
+    def _cursor_for_handle(self, handle_id: int) -> Qt.CursorShape:
+        if handle_id in (HANDLE_TL, HANDLE_BR):
             return Qt.SizeFDiagCursor
-        elif handle in (HANDLE_TR, HANDLE_BL):
+        if handle_id in (HANDLE_TR, HANDLE_BL):
             return Qt.SizeBDiagCursor
-        elif handle in (HANDLE_L, HANDLE_R):
-            return Qt.SizeHorCursor
-        elif handle in (HANDLE_T, HANDLE_B):
+        if handle_id in (HANDLE_T, HANDLE_B):
             return Qt.SizeVerCursor
+        if handle_id in (HANDLE_L, HANDLE_R):
+            return Qt.SizeHorCursor
         return Qt.ArrowCursor
 
     def mousePressEvent(self, event: QMouseEvent):
@@ -192,25 +209,27 @@ class SimulatedDesktopCanvas(QWidget):
                         event.accept()
                         return
 
-        # 2. Check if clicking on any enabled widget to select and drag
-        clicked_id = None
+        # 2. Check if clicking directly on any widget to select or drag
+        clicked_stat_id = None
         for stat_id, item in reversed(list(self.config.stats.items())):
             if item.mode == DisplayMode.DONT_SHOW:
                 continue
             r = self._get_widget_canvas_rect(dr, stat_id)
             if r and r.contains(pos):
-                clicked_id = stat_id
+                clicked_stat_id = stat_id
                 break
 
-        if clicked_id:
-            self.selected_stat_id = clicked_id
-            self.widget_selected.emit(clicked_id)
-            self._is_dragging = True
-            self._drag_start_screen = pos
-            item = self.config.stats[clicked_id]
-            w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
-            h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
-            self._orig_widget_rect = QRect(item.x, item.y, w, h)
+        if clicked_stat_id:
+            self.selected_stat_id = clicked_stat_id
+            self.widget_selected.emit(clicked_stat_id)
+            item = self.config.stats[clicked_stat_id]
+
+            if not item.is_locked:
+                self._is_dragging = True
+                self._drag_start_screen = pos
+                w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
+                h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
+                self._orig_widget_rect = QRect(item.x, item.y, w, h)
         else:
             self.selected_stat_id = None
             self.widget_selected.emit("")
@@ -222,7 +241,7 @@ class SimulatedDesktopCanvas(QWidget):
         dr = self.get_desktop_rect()
         pos = event.pos()
 
-        # Update cursor when hovering over resize handles
+        # Hover state and cursor update
         if not (self._is_dragging or self._active_handle != HANDLE_NONE):
             cursor_set = False
             if self.selected_stat_id:
@@ -249,7 +268,7 @@ class SimulatedDesktopCanvas(QWidget):
         scale_x = dr.width() / self.res_w
         scale_y = dr.height() / self.res_h
 
-        # 1. Dragging widget to reposition
+        # 1. Dragging widget
         if self._is_dragging and self.selected_stat_id:
             item = self.config.stats[self.selected_stat_id]
             dx = int((pos.x() - self._drag_start_screen.x()) / scale_x)
@@ -258,7 +277,7 @@ class SimulatedDesktopCanvas(QWidget):
             new_x = self._orig_widget_rect.x() + dx
             new_y = self._orig_widget_rect.y() + dy
 
-            # Apply edge snapping and alignment guides
+            # Snap to desktop edges & alignment guides
             new_x, new_y = self._apply_desktop_snapping(
                 self.selected_stat_id, new_x, new_y,
                 self._orig_widget_rect.width(), self._orig_widget_rect.height()
@@ -277,7 +296,7 @@ class SimulatedDesktopCanvas(QWidget):
             orig = self._orig_widget_rect
 
             nx, ny, nw, nh = orig.x(), orig.y(), orig.width(), orig.height()
-            min_w, min_h = 90, 32
+            min_w, min_h = 80, 28
 
             if self._active_handle in (HANDLE_R, HANDLE_TR, HANDLE_BR):
                 nw = max(min_w, orig.width() + dx)
@@ -314,12 +333,45 @@ class SimulatedDesktopCanvas(QWidget):
             self.update()
             event.accept()
 
+    def keyPressEvent(self, event):
+        """Keyboard nudging: Arrow keys (1px), Shift+Arrow (10px)."""
+        if not self.selected_stat_id:
+            super().keyPressEvent(event)
+            return
+
+        item = self.config.stats.get(self.selected_stat_id)
+        if not item or item.is_locked:
+            super().keyPressEvent(event)
+            return
+
+        step = 10 if (event.modifiers() & Qt.ShiftModifier) else 1
+        key = event.key()
+
+        if key == Qt.Key_Left:
+            item.x = max(0, item.x - step)
+        elif key == Qt.Key_Right:
+            item.x = min(self.res_w - 40, item.x + step)
+        elif key == Qt.Key_Up:
+            item.y = max(0, item.y - step)
+        elif key == Qt.Key_Down:
+            item.y = min(self.res_h - 20, item.y + step)
+        elif key == Qt.Key_Delete:
+            item.mode = DisplayMode.DONT_SHOW
+            item.enabled = False
+        else:
+            super().keyPressEvent(event)
+            return
+
+        self.geometry_modified.emit(self.selected_stat_id)
+        self.update()
+        event.accept()
+
     def _apply_desktop_snapping(self, moving_id: str, x: int, y: int, w: int, h: int) -> Tuple[int, int]:
-        """Snaps to screen borders and aligns with other widgets on the simulated desktop."""
+        """Snaps to screen borders and aligns with other widgets."""
         self._active_guides.clear()
         snap_thresh = 14
 
-        # 1. Desktop Edge Snapping
+        # Desktop Edge Snapping
         if self.snap_to_edges:
             if abs(x - 20) <= snap_thresh:
                 x = 20
@@ -327,6 +379,7 @@ class SimulatedDesktopCanvas(QWidget):
             if abs((x + w) - (self.res_w - 20)) <= snap_thresh:
                 x = self.res_w - 20 - w
                 self._active_guides.append((True, self.res_w - 20))
+
             if abs(y - 20) <= snap_thresh:
                 y = 20
                 self._active_guides.append((False, 20))
@@ -334,84 +387,64 @@ class SimulatedDesktopCanvas(QWidget):
                 y = self.res_h - 20 - h
                 self._active_guides.append((False, self.res_h - 20))
 
-        # 2. Alignment with other widgets
+        # Alignment Guides with other widgets
         if self.show_guides:
-            mid_x = x + (w // 2)
-            right_x = x + w
-            mid_y = y + (h // 2)
-            bot_y = y + h
-
-            for other_id, other_item in self.config.stats.items():
-                if other_id == moving_id or other_item.mode == DisplayMode.DONT_SHOW:
+            for s_id, o in self.config.stats.items():
+                if s_id == moving_id or o.mode == DisplayMode.DONT_SHOW:
                     continue
-                ow = other_item.graph_width if other_item.mode == DisplayMode.GRAPH else other_item.width
-                oh = other_item.graph_height if other_item.mode == DisplayMode.GRAPH else other_item.height
+                ow = o.graph_width if o.mode == DisplayMode.GRAPH else o.width
+                oh = o.graph_height if o.mode == DisplayMode.GRAPH else o.height
 
-                # Vertical column alignments
-                if abs(x - other_item.x) <= snap_thresh:
-                    x = other_item.x
+                # Vertical alignments
+                if abs(x - o.x) <= snap_thresh:
+                    x = o.x
                     self._active_guides.append((True, x))
-                elif abs(right_x - (other_item.x + ow)) <= snap_thresh:
-                    x = other_item.x + ow - w
-                    self._active_guides.append((True, other_item.x + ow))
+                elif abs((x + w) - (o.x + ow)) <= snap_thresh:
+                    x = o.x + ow - w
+                    self._active_guides.append((True, o.x + ow))
 
-                # Horizontal row alignments
-                if abs(y - other_item.y) <= snap_thresh:
-                    y = other_item.y
+                # Horizontal alignments
+                if abs(y - o.y) <= snap_thresh:
+                    y = o.y
                     self._active_guides.append((False, y))
-                elif abs(bot_y - (other_item.y + oh)) <= snap_thresh:
-                    y = other_item.y + oh - h
-                    self._active_guides.append((False, other_item.y + oh))
+                elif abs((y + h) - (o.y + oh)) <= snap_thresh:
+                    y = o.y + oh - h
+                    self._active_guides.append((False, o.y + oh))
 
-        # Clamp inside resolution bounds
-        x = max(0, min(self.res_w - w, x))
-        y = max(0, min(self.res_h - h, y))
-        return x, y
+        return max(0, min(self.res_w - w, x)), max(0, min(self.res_h - h, y))
 
-    def update_live_telemetry(self, snapshot: Dict[str, Any]):
-        self._telemetry_cache = snapshot
-        if self.live_telemetry_active:
-            self.update()
-
-    def paintEvent(self, event: QPaintEvent):
+    def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setRenderHint(QPainter.TextAntialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
 
         cw, ch = self.width(), self.height()
         painter.fillRect(0, 0, cw, ch, QColor(16, 21, 28))
 
         dr = self.get_desktop_rect()
 
+        # 1. Draw Real Desktop Wallpaper / Screen Capture
         if self.desktop_pixmap and not self.desktop_pixmap.isNull():
-            # Actual live desktop capture preview
             painter.drawPixmap(dr, self.desktop_pixmap)
-            # Subtle glass tint overlay to guarantee widget readability against any background
-            painter.fillRect(dr, QColor(0, 0, 0, 40))
+            # Subtle dark glass wash to enhance widget readability during placement
+            painter.fillRect(dr, QColor(0, 0, 0, 35))
             pen_border = QPen(QColor(COLORS["primary"]), 2)
             painter.setPen(pen_border)
             painter.drawRect(dr)
 
             # Live watermark badge
-            font_watermark = QFont("Segoe UI", 9, QFont.Bold)
-            painter.setFont(font_watermark)
+            font_badge = QFont("Segoe UI", 9, QFont.Bold)
+            painter.setFont(font_badge)
             painter.setPen(QColor(COLORS["success"]))
-            wm_text = f"● Live Desktop Preview ({self.res_w} × {self.res_h})"
-            painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(wm_text) - 12, dr.bottom() - 12, wm_text)
+            badge_text = f"● {self.capture_status} ({self.res_w} × {self.res_h})"
+            painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(badge_text) - 12, dr.bottom() - 12, badge_text)
         else:
-            # Fallback technical dark canvas
             painter.fillRect(dr, QColor(21, 29, 39))
             pen_border = QPen(QColor(COLORS["border_light"]), 1.5)
             painter.setPen(pen_border)
             painter.drawRect(dr)
 
-            font_watermark = QFont("Segoe UI", 9, QFont.Bold)
-            painter.setFont(font_watermark)
-            painter.setPen(QColor(COLORS["text_secondary"]))
-            wm_text = f"Desktop Canvas ({self.res_w} × {self.res_h})"
-            painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(wm_text) - 12, dr.bottom() - 12, wm_text)
-
-        # Draw Alignment Guide Lines (Cyan/Red)
+        # 2. Draw Dynamic Alignment Guides (Red / Cyan dashed lines)
         scale_x = dr.width() / self.res_w
         scale_y = dr.height() / self.res_h
 
@@ -426,7 +459,7 @@ class SimulatedDesktopCanvas(QWidget):
                     cy = dr.y() + int(d_coord * scale_y)
                     painter.drawLine(dr.left(), cy, dr.right(), cy)
 
-        # Draw Each Enabled Statistic Widget on the Desktop
+        # 3. Draw All Enabled Statistic Widgets
         for stat_id, item in self.config.stats.items():
             if item.mode == DisplayMode.DONT_SHOW:
                 continue
@@ -438,7 +471,7 @@ class SimulatedDesktopCanvas(QWidget):
             is_sel = (stat_id == self.selected_stat_id)
             is_hov = (stat_id == self._hovered_stat_id)
 
-            # 1. Widget Card Background (Transparent or subtle)
+            # Card Background
             if item.show_subtle_bg:
                 bg_a = int(item.bg_opacity * 255)
                 painter.fillRect(wr, QColor(16, 21, 28, max(50, bg_a)))
@@ -446,14 +479,12 @@ class SimulatedDesktopCanvas(QWidget):
                 painter.drawRoundedRect(wr, 4, 4)
             else:
                 painter.fillRect(wr, QColor(16, 21, 28, 45))
-                painter.setPen(QPen(QColor(34, 184, 207, 90), 1, Qt.DashLine))
+                painter.setPen(QPen(QColor(34, 184, 207, 80), 1, Qt.DashLine))
                 painter.drawRoundedRect(wr, 4, 4)
 
-            # 2. Widget Content
+            # Widget Title
             font_title = QFont("Segoe UI", max(8, int(item.font_size * scale_y * 0.8)), QFont.Bold)
             painter.setFont(font_title)
-
-            # Drop shadow for readability over live wallpaper
             if item.show_shadow:
                 painter.setPen(QColor(0, 0, 0, 220))
                 painter.drawText(wr.left() + 7, wr.top() + int(wr.height() * 0.38) + 1, item.name)
@@ -489,7 +520,7 @@ class SimulatedDesktopCanvas(QWidget):
                 painter.setPen(QColor(item.color))
                 painter.drawText(wr.left() + 6, wr.bottom() - 6, disp_str)
 
-            # 3. Selection Highlight & 8-Point Resize Handles
+            # 4. Selection Highlight & 8-Point Resize Handles
             if is_sel:
                 pen_sel = QPen(QColor(COLORS["primary"]), 2)
                 painter.setPen(pen_sel)
@@ -508,8 +539,15 @@ class SimulatedDesktopCanvas(QWidget):
 
 class VisualDesktopEditor(QWidget):
     """
-    Complete Visual Overlay Editor widget with Simulated Desktop Canvas,
-    Top Controls Toolbar (Save, Cancel, Undo, Redo, Presets), and Right Properties Panel.
+    World-class Drag-and-Drop Visual Overlay Editor.
+    Features:
+    - Real Windows desktop preview (authentic wallpaper and live windows)
+    - 8-point interactive resize handles and drag-and-drop
+    - Edge snapping and alignment guidelines
+    - Undo/Redo history stack
+    - Inspector properties panel with live bidirectional synchronization
+    - Integrated coordinates table view toggle
+    - Multi-monitor detection and resolution switching
     """
 
     save_and_apply = Signal(OverlayConfig)
@@ -528,14 +566,8 @@ class VisualDesktopEditor(QWidget):
         else:
             self.detected_res = (1366, 768)
 
-        # Screen capture state
-        self.selected_screen = primary
+        self.current_screen_idx = 0
         self.desktop_pixmap: Optional[QPixmap] = None
-
-        # Gentle auto-capture timer (runs every 3.5s only while editor is visible)
-        self.auto_capture_timer = QTimer(self)
-        self.auto_capture_timer.setInterval(3500)
-        self.auto_capture_timer.timeout.connect(self.capture_desktop)
 
         # Undo / Redo history stack
         self._history: List[Dict[str, Any]] = []
@@ -543,6 +575,7 @@ class VisualDesktopEditor(QWidget):
 
         self._build_ui()
         self._record_history()
+        self.capture_desktop()
 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
@@ -551,19 +584,21 @@ class VisualDesktopEditor(QWidget):
 
         # --- Top Toolbar ---
         toolbar = QFrame()
-        toolbar.setStyleSheet(f"background-color: {COLORS['bg_surface']}; border: 1px solid {COLORS['border']}; border-radius: 4px; padding: 3px;")
+        toolbar.setStyleSheet(f"background-color: {COLORS['bg_surface']}; border: 1px solid {COLORS['border']}; border-radius: 4px; padding: 2px;")
         t_layout = QHBoxLayout(toolbar)
-        t_layout.setContentsMargins(6, 3, 6, 3)
+        t_layout.setContentsMargins(6, 4, 6, 4)
         t_layout.setSpacing(6)
 
         # Save & Apply
         self.btn_save = QPushButton("Save & Apply")
+        self.btn_save.setIcon(get_icon("save", 16, "#10151C", "#10151C"))
         self.btn_save.setProperty("class", "PrimaryButton")
         self.btn_save.clicked.connect(self._on_save_clicked)
         t_layout.addWidget(self.btn_save)
 
-        # Cancel Button
+        # Cancel
         self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setIcon(get_icon("cancel", 16))
         self.btn_cancel.setProperty("class", "SecondaryButton")
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
         t_layout.addWidget(self.btn_cancel)
@@ -572,11 +607,13 @@ class VisualDesktopEditor(QWidget):
 
         # Undo / Redo
         self.btn_undo = QPushButton("Undo")
+        self.btn_undo.setIcon(get_icon("undo", 16))
         self.btn_undo.setProperty("class", "SecondaryButton")
         self.btn_undo.clicked.connect(self._on_undo)
         t_layout.addWidget(self.btn_undo)
 
         self.btn_redo = QPushButton("Redo")
+        self.btn_redo.setIcon(get_icon("redo", 16))
         self.btn_redo.setProperty("class", "SecondaryButton")
         self.btn_redo.clicked.connect(self._on_redo)
         t_layout.addWidget(self.btn_redo)
@@ -596,30 +633,53 @@ class VisualDesktopEditor(QWidget):
 
         t_layout.addStretch()
 
-        # Desktop Live Capture Controls
+        # Desktop Wallpaper & Window Capture Controls
         self.btn_refresh_preview = QPushButton("Refresh Desktop")
+        self.btn_refresh_preview.setIcon(get_icon("refresh", 16))
         self.btn_refresh_preview.setProperty("class", "SecondaryButton")
-        self.btn_refresh_preview.setToolTip("Capture current live desktop wallpaper and open windows")
+        self.btn_refresh_preview.setToolTip("Captures current Windows wallpaper and visible applications")
         self.btn_refresh_preview.clicked.connect(self.capture_desktop)
         t_layout.addWidget(self.btn_refresh_preview)
 
-        self.chk_auto_capture = QCheckBox("Auto-Refresh")
-        self.chk_auto_capture.setChecked(False)
-        self.chk_auto_capture.setToolTip("Periodically re-captures desktop preview every 3.5s")
-        self.chk_auto_capture.toggled.connect(self._on_auto_capture_toggled)
-        t_layout.addWidget(self.chk_auto_capture)
+        # Zoom Controls
+        btn_zoom_out = QPushButton()
+        btn_zoom_out.setIcon(get_icon("zoom_out", 16))
+        btn_zoom_out.setToolTip("Zoom Out")
+        btn_zoom_out.setProperty("class", "SecondaryButton")
+        btn_zoom_out.clicked.connect(lambda: self.canvas.set_zoom(self.canvas.zoom_factor - 0.15))
+        t_layout.addWidget(btn_zoom_out)
+
+        btn_zoom_fit = QPushButton()
+        btn_zoom_fit.setIcon(get_icon("zoom_fit", 16))
+        btn_zoom_fit.setToolTip("Fit to Window")
+        btn_zoom_fit.setProperty("class", "SecondaryButton")
+        btn_zoom_fit.clicked.connect(lambda: self.canvas.set_zoom(1.0))
+        t_layout.addWidget(btn_zoom_fit)
+
+        btn_zoom_in = QPushButton()
+        btn_zoom_in.setIcon(get_icon("zoom_in", 16))
+        btn_zoom_in.setToolTip("Zoom In")
+        btn_zoom_in.setProperty("class", "SecondaryButton")
+        btn_zoom_in.clicked.connect(lambda: self.canvas.set_zoom(self.canvas.zoom_factor + 0.15))
+        t_layout.addWidget(btn_zoom_in)
+
+        # View Switcher (Canvas vs Table)
+        self.btn_toggle_view = QPushButton("Table View")
+        self.btn_toggle_view.setIcon(get_icon("table", 16))
+        self.btn_toggle_view.setProperty("class", "SecondaryButton")
+        self.btn_toggle_view.setCheckable(True)
+        self.btn_toggle_view.clicked.connect(self._toggle_view_mode)
+        t_layout.addWidget(self.btn_toggle_view)
+
+        t_layout.addSpacing(6)
 
         # Monitor Selector
         lbl_mon = QLabel("Monitor:")
-        lbl_mon.setStyleSheet(f"color: {COLORS['text_secondary']};")
+        lbl_mon.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
         t_layout.addWidget(lbl_mon)
 
         self.combo_screen = QComboBox()
-        screens = QGuiApplication.screens()
-        for idx, s in enumerate(screens):
-            geo = s.geometry()
-            tag = " (Primary)" if s == QGuiApplication.primaryScreen() else ""
-            self.combo_screen.addItem(f"Display {idx + 1}{tag} ({geo.width()}×{geo.height()})", s)
+        self._populate_monitors()
         self.combo_screen.currentIndexChanged.connect(self._on_screen_changed)
         t_layout.addWidget(self.combo_screen)
 
@@ -633,316 +693,605 @@ class VisualDesktopEditor(QWidget):
         self.combo_res.currentIndexChanged.connect(self._on_res_changed)
         t_layout.addWidget(self.combo_res)
 
-        # Snapping Checkbox
-        self.chk_snap = QCheckBox("Snap Edges")
+        # Snapping Checkboxes
+        self.chk_snap = QCheckBox("Snap")
         self.chk_snap.setChecked(True)
-        self.chk_snap.toggled.connect(self._on_snap_toggled)
+        self.chk_snap.toggled.connect(lambda chk: setattr(self.canvas, "snap_to_edges", chk))
         t_layout.addWidget(self.chk_snap)
+
+        self.chk_guides = QCheckBox("Guides")
+        self.chk_guides.setChecked(True)
+        self.chk_guides.toggled.connect(lambda chk: setattr(self.canvas, "show_guides", chk))
+        t_layout.addWidget(self.chk_guides)
 
         main_layout.addWidget(toolbar)
 
-        # --- Center: Splitter (Desktop Canvas 78% on Left, Properties 22% on Right) ---
-        self.splitter = QSplitter(Qt.Horizontal)
+        # --- Main Workspace Stack: View 0 = Splitter (Canvas + Inspector), View 1 = Coordinates Table ---
+        self.view_stack = QStackedWidget()
 
-        # Canvas
-        self.canvas = SimulatedDesktopCanvas(self.working_config, screen_res=self.detected_res, parent=self)
+        # View 0: Interactive Canvas + Properties Panel
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.setStyleSheet(f"QSplitter::handle {{ background-color: {COLORS['border']}; width: 2px; }}")
+
+        self.canvas = InteractiveDesktopCanvas(self.working_config, self.detected_res, self)
         self.canvas.widget_selected.connect(self._on_widget_selected)
-        self.canvas.geometry_modified.connect(self._on_canvas_modified)
+        self.canvas.geometry_modified.connect(self._on_geometry_modified)
         self.splitter.addWidget(self.canvas)
 
-        # Properties Panel wrapped in ScrollArea to prevent clipping on small displays
-        prop_panel = self._build_properties_panel()
-        self.splitter.addWidget(prop_panel)
-        self.splitter.setStretchFactor(0, 4)
-        self.splitter.setStretchFactor(1, 1)
-        self.splitter.setSizes([850, 240])
+        self.prop_panel = self._build_properties_panel()
+        self.splitter.addWidget(self.prop_panel)
+        self.view_stack.addWidget(self.splitter)
 
-        main_layout.addWidget(self.splitter)
-        self._update_undo_redo_ui()
+        # View 1: Coordinates Reference Table
+        self.table_view_widget = self._build_table_view()
+        self.view_stack.addWidget(self.table_view_widget)
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        self.capture_desktop()
-        if hasattr(self, "chk_auto_capture") and self.chk_auto_capture.isChecked():
-            self.auto_capture_timer.start()
-        QTimer.singleShot(40, self._apply_splitter_proportions)
+        main_layout.addWidget(self.view_stack)
 
-    def hideEvent(self, event):
-        super().hideEvent(event)
-        self.auto_capture_timer.stop()
+        # Pre-populate table
+        self._sync_table_from_config()
+
+        # Apply 78% Canvas / 22% Inspector ratio
+        QTimer.singleShot(50, self._apply_splitter_proportions)
+
+        # Shortcuts
+        QShortcut(QKeySequence.Undo, self, self._on_undo)
+        QShortcut(QKeySequence.Redo, self, self._on_redo)
+
+    def _populate_monitors(self):
+        self.combo_screen.clear()
+        monitors = get_available_monitors()
+        for mon in monitors:
+            self.combo_screen.addItem(mon["label"], mon["index"])
 
     def _apply_splitter_proportions(self):
         w = self.width()
         if w > 400:
-            self.splitter.setSizes([int(w * 0.78), int(w * 0.22)])
+            self.splitter.setSizes([int(w * 0.77), int(w * 0.23)])
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_splitter_proportions()
 
     def capture_desktop(self):
-        """Captures actual desktop background and visible applications where supported."""
-        screen = self.selected_screen or QGuiApplication.primaryScreen()
-        if screen:
-            try:
-                pix = screen.grabWindow(0)
-                if not pix.isNull():
-                    self.desktop_pixmap = pix
-                    self.canvas.set_desktop_pixmap(pix)
-                    geo = screen.geometry()
-                    self.canvas.set_resolution(geo.width(), geo.height())
-                    return
-            except Exception as e:
-                logger.warning(f"Desktop capture exception: {e}")
-        self.canvas.set_desktop_pixmap(None)
+        """Captures the user's authentic desktop wallpaper and open windows."""
+        screen_idx = self.combo_screen.currentData() or 0
+        target_res = self.combo_res.currentData() or self.detected_res
 
-    def _on_auto_capture_toggled(self, checked: bool):
-        if checked:
-            self.auto_capture_timer.start()
-            self.capture_desktop()
+        # Pass parent window to prevent recursive capture loop
+        top_window = self.window() if self.isVisible() else None
+        pix, desc = capture_desktop_preview(screen_idx, target_res, exclude_widget=top_window)
+
+        if pix and not pix.isNull():
+            self.desktop_pixmap = pix
+            self.canvas.set_desktop_pixmap(pix, desc)
+            self.canvas.set_resolution(target_res[0], target_res[1])
         else:
-            self.auto_capture_timer.stop()
+            self.canvas.set_desktop_pixmap(None, "Canvas Grid")
 
     def _on_screen_changed(self):
-        screen = self.combo_screen.currentData()
-        if screen:
-            self.selected_screen = screen
-            self.capture_desktop()
+        self.current_screen_idx = self.combo_screen.currentData() or 0
+        screens = QGuiApplication.screens()
+        if 0 <= self.current_screen_idx < len(screens):
+            geo = screens[self.current_screen_idx].geometry()
+            self.detected_res = (geo.width(), geo.height())
+            self.canvas.set_resolution(geo.width(), geo.height())
+        self.capture_desktop()
+
+    def _on_res_changed(self):
+        res = self.combo_res.currentData()
+        if res:
+            self.canvas.set_resolution(res[0], res[1])
+
+    def _toggle_view_mode(self, checked: bool):
+        if checked:
+            self.btn_toggle_view.setText("Canvas View")
+            self.btn_toggle_view.setIcon(get_icon("monitor", 16))
+            self._sync_table_from_config()
+            self.view_stack.setCurrentIndex(1)
+        else:
+            self.btn_toggle_view.setText("Table View")
+            self.btn_toggle_view.setIcon(get_icon("table", 16))
+            self.view_stack.setCurrentIndex(0)
+
+    # --- Inspector Panel ---
 
     def _build_properties_panel(self) -> QWidget:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("background-color: transparent;")
+        scroll.setStyleSheet(f"background-color: {COLORS['bg_surface']}; border-left: 1px solid {COLORS['border']};")
 
-        panel = QFrame()
-        panel.setProperty("class", "ContentCard")
-        panel.setMinimumWidth(220)
-        p_layout = QVBoxLayout(panel)
-        p_layout.setContentsMargins(8, 8, 8, 8)
-        p_layout.setSpacing(6)
+        panel = QWidget()
+        panel.setStyleSheet("background-color: transparent;")
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
 
-        p_title = QLabel("Widget Inspector")
-        p_title.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {COLORS['primary']};")
-        p_layout.addWidget(p_title)
+        # Header Badge
+        self.lbl_prop_title = QLabel("Widget Inspector")
+        self.lbl_prop_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['primary']};")
+        layout.addWidget(self.lbl_prop_title)
 
-        self.lbl_selected_name = QLabel("Click any widget on desktop to inspect & edit")
-        self.lbl_selected_name.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
-        self.lbl_selected_name.setWordWrap(True)
-        p_layout.addWidget(self.lbl_selected_name)
+        self.lbl_selected_name = QLabel("Active: None")
+        self.lbl_selected_name.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {COLORS['text_bright']};")
+        layout.addWidget(self.lbl_selected_name)
 
+        self.lbl_prop_desc = QLabel("Select any statistic on the canvas to configure.")
+        self.lbl_prop_desc.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
+        layout.addWidget(self.lbl_prop_desc)
+
+        # Form Container for enable/disable state
         self.form_widget = QWidget()
-        grid = QGridLayout(self.form_widget)
-        grid.setContentsMargins(0, 4, 0, 4)
-        grid.setSpacing(6)
+        form_layout = QVBoxLayout(self.form_widget)
+        form_layout.setContentsMargins(0, 0, 0, 0)
+        form_layout.setSpacing(8)
 
-        # Display Mode
-        grid.addWidget(QLabel("Display Mode:"), 0, 0)
+        # Position Group
+        grp_pos = QFrame()
+        grp_pos.setStyleSheet(f"background-color: {COLORS['bg_elevated']}; border: 1px solid {COLORS['border']}; border-radius: 4px; padding: 6px;")
+        g_pos = QGridLayout(grp_pos)
+        g_pos.setSpacing(6)
+
+        g_pos.addWidget(QLabel("Position X:"), 0, 0)
+        self.spin_x = QSpinBox()
+        self.spin_x.setRange(0, 7680)
+        self.spin_x.valueChanged.connect(self._on_prop_coord_changed)
+        g_pos.addWidget(self.spin_x, 0, 1)
+
+        g_pos.addWidget(QLabel("Position Y:"), 1, 0)
+        self.spin_y = QSpinBox()
+        self.spin_y.setRange(0, 4320)
+        self.spin_y.valueChanged.connect(self._on_prop_coord_changed)
+        g_pos.addWidget(self.spin_y, 1, 1)
+
+        g_pos.addWidget(QLabel("Width:"), 2, 0)
+        self.spin_w = QSpinBox()
+        self.spin_w.setRange(80, 1920)
+        self.spin_w.valueChanged.connect(self._on_prop_size_changed)
+        g_pos.addWidget(self.spin_w, 2, 1)
+
+        g_pos.addWidget(QLabel("Height:"), 3, 0)
+        self.spin_h = QSpinBox()
+        self.spin_h.setRange(28, 1080)
+        self.spin_h.valueChanged.connect(self._on_prop_size_changed)
+        g_pos.addWidget(self.spin_h, 3, 1)
+
+        form_layout.addWidget(grp_pos)
+
+        # Styling Group
+        grp_style = QFrame()
+        grp_style.setStyleSheet(f"background-color: {COLORS['bg_elevated']}; border: 1px solid {COLORS['border']}; border-radius: 4px; padding: 6px;")
+        g_style = QGridLayout(grp_style)
+        g_style.setSpacing(6)
+
+        g_style.addWidget(QLabel("Font Size:"), 0, 0)
+        self.spin_font = QSpinBox()
+        self.spin_font.setRange(8, 48)
+        self.spin_font.valueChanged.connect(self._on_prop_font_changed)
+        g_style.addWidget(self.spin_font, 0, 1)
+
+        g_style.addWidget(QLabel("Mode:"), 1, 0)
         self.combo_mode = QComboBox()
         self.combo_mode.addItem("Don't Show", DisplayMode.DONT_SHOW)
         self.combo_mode.addItem("Numbers", DisplayMode.NUMBERS)
         self.combo_mode.addItem("Graph", DisplayMode.GRAPH)
         self.combo_mode.currentIndexChanged.connect(self._on_prop_mode_changed)
-        grid.addWidget(self.combo_mode, 0, 1)
+        g_style.addWidget(self.combo_mode, 1, 1)
 
-        # Coordinates
-        grid.addWidget(QLabel("Desktop X:"), 1, 0)
-        self.spin_x = QSpinBox()
-        self.spin_x.setRange(0, 7680)
-        self.spin_x.valueChanged.connect(self._on_prop_geom_changed)
-        grid.addWidget(self.spin_x, 1, 1)
-
-        grid.addWidget(QLabel("Desktop Y:"), 2, 0)
-        self.spin_y = QSpinBox()
-        self.spin_y.setRange(0, 4320)
-        self.spin_y.valueChanged.connect(self._on_prop_geom_changed)
-        grid.addWidget(self.spin_y, 2, 1)
-
-        # Dimensions
-        grid.addWidget(QLabel("Width (px):"), 3, 0)
-        self.spin_w = QSpinBox()
-        self.spin_w.setRange(60, 800)
-        self.spin_w.valueChanged.connect(self._on_prop_geom_changed)
-        grid.addWidget(self.spin_w, 3, 1)
-
-        grid.addWidget(QLabel("Height (px):"), 4, 0)
-        self.spin_h = QSpinBox()
-        self.spin_h.setRange(24, 400)
-        self.spin_h.valueChanged.connect(self._on_prop_geom_changed)
-        grid.addWidget(self.spin_h, 4, 1)
-
-        # Typography
-        grid.addWidget(QLabel("Font Size:"), 5, 0)
-        self.spin_font = QSpinBox()
-        self.spin_font.setRange(9, 36)
-        self.spin_font.valueChanged.connect(self._on_prop_style_changed)
-        grid.addWidget(self.spin_font, 5, 1)
-
-        # Color
-        grid.addWidget(QLabel("Accent Color:"), 6, 0)
+        g_style.addWidget(QLabel("Accent Color:"), 2, 0)
         self.btn_color = QPushButton("Pick Color")
         self.btn_color.setProperty("class", "SecondaryButton")
         self.btn_color.clicked.connect(self._on_pick_color)
-        grid.addWidget(self.btn_color, 6, 1)
+        g_style.addWidget(self.btn_color, 2, 1)
 
-        p_layout.addWidget(self.form_widget)
+        g_style.addWidget(QLabel("Opacity:"), 3, 0)
+        self.slider_opacity = QSlider(Qt.Horizontal)
+        self.slider_opacity.setRange(10, 100)
+        self.slider_opacity.valueChanged.connect(self._on_prop_opacity_changed)
+        g_style.addWidget(self.slider_opacity, 3, 1)
 
-        # Quick Corner Snap Buttons
-        grp_corners = QGroupBox("Corner Placement")
-        grp_corners.setStyleSheet(f"QGroupBox {{ font-size: 11px; font-weight: bold; color: {COLORS['text_secondary']}; border: 1px solid {COLORS['border']}; border-radius: 4px; margin-top: 6px; padding-top: 10px; }}")
-        c_grid = QGridLayout(grp_corners)
-        c_grid.setSpacing(5)
+        self.chk_subtle_bg = QCheckBox("Subtle Background")
+        self.chk_subtle_bg.toggled.connect(self._on_prop_bg_toggled)
+        g_style.addWidget(self.chk_subtle_bg, 4, 0, 1, 2)
 
-        btn_tl = QPushButton("Top-Left")
-        btn_tl.setProperty("class", "SecondaryButton")
-        btn_tl.clicked.connect(lambda: self._snap_selected_corner(20, 20))
-        c_grid.addWidget(btn_tl, 0, 0)
+        self.chk_lock = QCheckBox("Lock Position")
+        self.chk_lock.toggled.connect(self._on_prop_lock_toggled)
+        g_style.addWidget(self.chk_lock, 5, 0, 1, 2)
 
-        btn_tr = QPushButton("Top-Right")
-        btn_tr.setProperty("class", "SecondaryButton")
-        btn_tr.clicked.connect(lambda: self._snap_selected_corner(self.canvas.res_w - 200, 20))
-        c_grid.addWidget(btn_tr, 0, 1)
+        form_layout.addWidget(grp_style)
 
-        btn_bl = QPushButton("Bottom-Left")
-        btn_bl.setProperty("class", "SecondaryButton")
-        btn_bl.clicked.connect(lambda: self._snap_selected_corner(20, self.canvas.res_h - 75))
-        c_grid.addWidget(btn_bl, 1, 0)
+        # Quick Alignment Tools
+        lbl_align = QLabel("Alignment & Snapping Tools")
+        lbl_align.setStyleSheet(f"font-weight: 700; color: {COLORS['text_primary']}; font-size: 11px;")
+        form_layout.addWidget(lbl_align)
 
-        btn_br = QPushButton("Bottom-Right")
-        btn_br.setProperty("class", "SecondaryButton")
-        btn_br.clicked.connect(lambda: self._snap_selected_corner(self.canvas.res_w - 200, self.canvas.res_h - 75))
-        c_grid.addWidget(btn_br, 1, 1)
+        grp_align = QFrame()
+        grp_align.setStyleSheet(f"background-color: {COLORS['bg_elevated']}; border: 1px solid {COLORS['border']}; border-radius: 4px; padding: 4px;")
+        g_align = QGridLayout(grp_align)
+        g_align.setSpacing(4)
 
-        p_layout.addWidget(grp_corners)
-        p_layout.addStretch()
+        for label, icon_name, func, r, c in [
+            ("Left", "align_left", self._align_left, 0, 0),
+            ("Center", "align_center", self._align_center, 0, 1),
+            ("Right", "align_right", self._align_right, 0, 2),
+            ("Top", "align_top", self._align_top, 1, 0),
+            ("Middle", "align_center", self._align_middle, 1, 1),
+            ("Bottom", "align_bottom", self._align_bottom, 1, 2),
+        ]:
+            b = QPushButton(label)
+            b.setIcon(get_icon(icon_name, 14))
+            b.setProperty("class", "SecondaryButton")
+            b.clicked.connect(func)
+            g_align.addWidget(b, r, c)
 
+        form_layout.addWidget(grp_align)
+
+        # Quick Corner Snaps
+        grp_corners = QFrame()
+        grp_corners.setStyleSheet(f"background-color: {COLORS['bg_elevated']}; border: 1px solid {COLORS['border']}; border-radius: 4px; padding: 4px;")
+        g_cor = QGridLayout(grp_corners)
+        g_cor.setSpacing(4)
+
+        for label, corner, r, c in [
+            ("Top-Left", "tl", 0, 0),
+            ("Top-Right", "tr", 0, 1),
+            ("Bottom-Left", "bl", 1, 0),
+            ("Bottom-Right", "br", 1, 1),
+        ]:
+            b = QPushButton(label)
+            b.setProperty("class", "SecondaryButton")
+            b.clicked.connect(lambda _, cor=corner: self._snap_selected_to_corner(cor))
+            g_cor.addWidget(b, r, c)
+
+        form_layout.addWidget(grp_corners)
+        layout.addWidget(self.form_widget)
         self.form_widget.setEnabled(False)
+        layout.addStretch()
+
         scroll.setWidget(panel)
         return scroll
 
-    def _on_widget_selected(self, stat_id: str):
-        if not stat_id or stat_id not in self.working_config.stats:
-            self.lbl_selected_name.setText("Click any widget on the desktop to inspect & edit")
-            self.form_widget.setEnabled(False)
-            self.canvas.selected_stat_id = None
-            return
+    # --- Coordinates Table View ---
 
-        self.canvas.selected_stat_id = stat_id
-        item = self.working_config.stats[stat_id]
-        self.lbl_selected_name.setText(f"Active: {item.name} ({item.category.capitalize()})")
-        self.form_widget.setEnabled(True)
+    def _build_table_view(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(8)
 
-        self.combo_mode.blockSignals(True)
-        idx = self.combo_mode.findData(item.mode)
-        if idx >= 0: self.combo_mode.setCurrentIndex(idx)
-        self.combo_mode.blockSignals(False)
+        card = QFrame()
+        card.setProperty("class", "ContentCard")
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(12, 10, 12, 10)
+        c_layout.setSpacing(8)
 
-        for spin, val in (
-            (self.spin_x, item.x),
-            (self.spin_y, item.y),
-            (self.spin_w, item.graph_width if item.mode == DisplayMode.GRAPH else item.width),
-            (self.spin_h, item.graph_height if item.mode == DisplayMode.GRAPH else item.height),
-            (self.spin_font, item.font_size),
-        ):
-            spin.blockSignals(True)
-            spin.setValue(val)
-            spin.blockSignals(False)
+        t_lbl = QLabel("Precise Coordinates Table (All 11 Statistics)")
+        t_lbl.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['primary']};")
+        c_layout.addWidget(t_lbl)
 
-        self.btn_color.setStyleSheet(f"background-color: {item.color}; color: #000; font-weight: bold; border-radius: 4px;")
+        self.table_pos = QTableWidget()
+        self.table_pos.setColumnCount(6)
+        self.table_pos.setHorizontalHeaderLabels([
+            "Statistic", "X Coordinate", "Y Coordinate", "Quick Snap Corner", "Reset Position", "Lock"
+        ])
+        self.table_pos.verticalHeader().setVisible(False)
+        self.table_pos.verticalHeader().setDefaultSectionSize(44)
+        self.table_pos.setShowGrid(True)
+        self.table_pos.setMinimumHeight(520)
+        self.table_pos.horizontalHeader().setStretchLastSection(True)
 
-    def _on_canvas_modified(self, stat_id: str):
-        if stat_id and stat_id == self.canvas.selected_stat_id:
+        c_layout.addWidget(self.table_pos)
+        layout.addWidget(card)
+        return container
+
+    def _sync_table_from_config(self):
+        self.table_pos.setRowCount(0)
+        for row, (stat_id, item) in enumerate(self.working_config.stats.items()):
+            self.table_pos.insertRow(row)
+
+            # 0: Name
+            s_name = QTableWidgetItem(f"  {item.name} ({item.mode.capitalize()})")
+            s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
+            s_name.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+            self.table_pos.setItem(row, 0, s_name)
+
+            # 1: X Coordinate
+            spin_x = QSpinBox()
+            spin_x.setRange(0, 7680)
+            spin_x.setValue(item.x)
+            spin_x.valueChanged.connect(lambda v, s=stat_id: self._on_table_coord_changed(s, x=v))
+            self.table_pos.setCellWidget(row, 1, self._wrap_widget(spin_x))
+
+            # 2: Y Coordinate
+            spin_y = QSpinBox()
+            spin_y.setRange(0, 4320)
+            spin_y.setValue(item.y)
+            spin_y.valueChanged.connect(lambda v, s=stat_id: self._on_table_coord_changed(s, y=v))
+            self.table_pos.setCellWidget(row, 2, self._wrap_widget(spin_y))
+
+            # 3: Snap Corner
+            combo = QComboBox()
+            combo.addItem("Snap Corner...", "")
+            combo.addItem("Top-Left", (24, 24))
+            combo.addItem("Top-Right", (1180, 24))
+            combo.addItem("Bottom-Left", (24, 700))
+            combo.addItem("Bottom-Right", (1180, 700))
+            combo.currentIndexChanged.connect(lambda idx, s=stat_id, c=combo, sx=spin_x, sy=spin_y: self._on_table_snap_corner(s, c, sx, sy))
+            self.table_pos.setCellWidget(row, 3, self._wrap_widget(combo))
+
+            # 4: Reset
+            btn_res = QPushButton("Reset Pos")
+            btn_res.setProperty("class", "SecondaryButton")
+            btn_res.clicked.connect(lambda _, s=stat_id, sx=spin_x, sy=spin_y: self._on_table_reset_single(s, sx, sy))
+            self.table_pos.setCellWidget(row, 4, self._wrap_widget(btn_res))
+
+            # 5: Lock
+            chk = QCheckBox("Lock")
+            chk.setChecked(item.is_locked)
+            chk.toggled.connect(lambda c, s=stat_id: self._on_table_lock_toggled(s, c))
+            self.table_pos.setCellWidget(row, 5, self._wrap_widget(chk))
+
+        self._adjust_table_columns()
+
+    def _wrap_widget(self, w: QWidget) -> QWidget:
+        container = QWidget()
+        l = QHBoxLayout(container)
+        l.setContentsMargins(6, 4, 6, 4)
+        l.setAlignment(Qt.AlignCenter)
+        l.addWidget(w)
+        return container
+
+    def _adjust_table_columns(self):
+        w = max(700, self.table_pos.viewport().width())
+        self.table_pos.setColumnWidth(0, int(w * 0.28))
+        self.table_pos.setColumnWidth(1, int(w * 0.15))
+        self.table_pos.setColumnWidth(2, int(w * 0.15))
+        self.table_pos.setColumnWidth(3, max(150, int(w * 0.24)))
+        self.table_pos.setColumnWidth(4, max(85, int(w * 0.10)))
+        self.table_pos.setColumnWidth(5, max(55, int(w * 0.08)))
+
+    def _on_table_coord_changed(self, stat_id: str, x: Optional[int] = None, y: Optional[int] = None):
+        if stat_id in self.working_config.stats:
             item = self.working_config.stats[stat_id]
-            self.spin_x.blockSignals(True)
-            self.spin_y.blockSignals(True)
-            self.spin_w.blockSignals(True)
-            self.spin_h.blockSignals(True)
-            self.spin_x.setValue(item.x)
-            self.spin_y.setValue(item.y)
-            w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
-            h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
-            self.spin_w.setValue(w)
-            self.spin_h.setValue(h)
-            self.spin_x.blockSignals(False)
-            self.spin_y.blockSignals(False)
-            self.spin_w.blockSignals(False)
-            self.spin_h.blockSignals(False)
-        self._record_history()
-
-    def _on_prop_mode_changed(self):
-        stat_id = self.canvas.selected_stat_id
-        if not stat_id or stat_id not in self.working_config.stats: return
-        item = self.working_config.stats[stat_id]
-        item.mode = self.combo_mode.currentData()
-        item.enabled = (item.mode != DisplayMode.DONT_SHOW)
-        self.canvas.update()
-        self._record_history()
-
-    def _on_prop_geom_changed(self):
-        stat_id = self.canvas.selected_stat_id
-        if not stat_id or stat_id not in self.working_config.stats: return
-        item = self.working_config.stats[stat_id]
-        item.x = self.spin_x.value()
-        item.y = self.spin_y.value()
-        if item.mode == DisplayMode.GRAPH:
-            item.graph_width = self.spin_w.value()
-            item.graph_height = self.spin_h.value()
-        else:
-            item.width = self.spin_w.value()
-            item.height = self.spin_h.value()
-        self.canvas.update()
-        self._record_history()
-
-    def _on_prop_style_changed(self):
-        stat_id = self.canvas.selected_stat_id
-        if not stat_id or stat_id not in self.working_config.stats: return
-        self.working_config.stats[stat_id].font_size = self.spin_font.value()
-        self.canvas.update()
-
-    def _on_pick_color(self):
-        stat_id = self.canvas.selected_stat_id
-        if not stat_id or stat_id not in self.working_config.stats: return
-        item = self.working_config.stats[stat_id]
-        c = QColorDialog.getColor(QColor(item.color), self, f"Select Accent Color for {item.name}")
-        if c.isValid():
-            item.color = c.name()
-            self.btn_color.setStyleSheet(f"background-color: {item.color}; color: #000; font-weight: bold; border-radius: 4px;")
+            if x is not None: item.x = x
+            if y is not None: item.y = y
             self.canvas.update()
             self._record_history()
 
-    def _snap_selected_corner(self, x: int, y: int):
-        stat_id = self.canvas.selected_stat_id
-        if not stat_id or stat_id not in self.working_config.stats: return
+    def _on_table_snap_corner(self, stat_id: str, combo: QComboBox, sx: QSpinBox, sy: QSpinBox):
+        pos = combo.currentData()
+        if pos and isinstance(pos, tuple):
+            sx.setValue(pos[0])
+            sy.setValue(pos[1])
+            self._on_table_coord_changed(stat_id, x=pos[0], y=pos[1])
+
+    def _on_table_reset_single(self, stat_id: str, sx: QSpinBox, sy: QSpinBox):
+        defaults = get_default_stats_catalog()
+        if stat_id in defaults:
+            def_item = defaults[stat_id]
+            sx.setValue(def_item.x)
+            sy.setValue(def_item.y)
+            self._on_table_coord_changed(stat_id, x=def_item.x, y=def_item.y)
+
+    def _on_table_lock_toggled(self, stat_id: str, locked: bool):
+        if stat_id in self.working_config.stats:
+            self.working_config.stats[stat_id].is_locked = locked
+
+    # --- Inspector Panel Synchronization ---
+
+    def _on_widget_selected(self, stat_id: str):
+        self.canvas.selected_stat_id = stat_id
+        if not stat_id or stat_id not in self.working_config.stats:
+            self.lbl_selected_name.setText("Active: None")
+            self.lbl_prop_title.setText("Widget Inspector")
+            self.lbl_prop_desc.setText("Select any statistic on the canvas to configure.")
+            self.form_widget.setEnabled(False)
+            return
+
         item = self.working_config.stats[stat_id]
-        item.x = max(0, x)
-        item.y = max(0, y)
+        self.lbl_selected_name.setText(f"Active: {item.name}")
+        self.lbl_prop_title.setText(f"{item.name} ({item.category.capitalize()})")
+        self.lbl_prop_desc.setText(f"Metric ID: {stat_id}")
+        self.form_widget.setEnabled(True)
+
+        self.spin_x.blockSignals(True)
+        self.spin_y.blockSignals(True)
+        self.spin_w.blockSignals(True)
+        self.spin_h.blockSignals(True)
+        self.spin_font.blockSignals(True)
+        self.combo_mode.blockSignals(True)
+        self.slider_opacity.blockSignals(True)
+        self.chk_subtle_bg.blockSignals(True)
+        self.chk_lock.blockSignals(True)
+
         self.spin_x.setValue(item.x)
         self.spin_y.setValue(item.y)
-        self.canvas.update()
+        w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
+        h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
+        self.spin_w.setValue(w)
+        self.spin_h.setValue(h)
+        self.spin_font.setValue(item.font_size)
+
+        idx = self.combo_mode.findData(item.mode)
+        if idx >= 0: self.combo_mode.setCurrentIndex(idx)
+
+        self.btn_color.setStyleSheet(f"background-color: {item.color}; color: #000000; font-weight: bold;")
+        self.slider_opacity.setValue(int(item.opacity * 100))
+        self.chk_subtle_bg.setChecked(item.show_subtle_bg)
+        self.chk_lock.setChecked(item.is_locked)
+
+        self.spin_x.blockSignals(False)
+        self.spin_y.blockSignals(False)
+        self.spin_w.blockSignals(False)
+        self.spin_h.blockSignals(False)
+        self.spin_font.blockSignals(False)
+        self.combo_mode.blockSignals(False)
+        self.slider_opacity.blockSignals(False)
+        self.chk_subtle_bg.blockSignals(False)
+        self.chk_lock.blockSignals(False)
+
+    def _on_geometry_modified(self, stat_id: str):
+        if stat_id == self.canvas.selected_stat_id:
+            self._on_widget_selected(stat_id)
         self._record_history()
 
-    def _on_res_changed(self):
-        data = self.combo_res.currentData()
-        if data and isinstance(data, tuple):
-            self.canvas.set_resolution(data[0], data[1])
+    def _on_prop_coord_changed(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            item = self.working_config.stats[s_id]
+            item.x = self.spin_x.value()
+            item.y = self.spin_y.value()
+            self.canvas.update()
+            self._record_history()
 
-    def _on_snap_toggled(self, checked: bool):
-        self.canvas.snap_to_edges = checked
+    def _on_prop_size_changed(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            item = self.working_config.stats[s_id]
+            w = self.spin_w.value()
+            h = self.spin_h.value()
+            if item.mode == DisplayMode.GRAPH:
+                item.graph_width = w
+                item.graph_height = h
+            else:
+                item.width = w
+                item.height = h
+            self.canvas.update()
+            self._record_history()
 
-    # --- History & Undo / Redo ---
+    def _on_prop_font_changed(self, val: int):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            self.working_config.stats[s_id].font_size = val
+            self.canvas.update()
+            self._record_history()
+
+    def _on_prop_mode_changed(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            mode = self.combo_mode.currentData()
+            item = self.working_config.stats[s_id]
+            item.mode = mode
+            item.enabled = (mode != DisplayMode.DONT_SHOW)
+            self.canvas.update()
+            self._record_history()
+
+    def _on_pick_color(self):
+        s_id = self.canvas.selected_stat_id
+        if not s_id or s_id not in self.working_config.stats:
+            return
+        item = self.working_config.stats[s_id]
+        chosen = QColorDialog.getColor(QColor(item.color), self, f"Select Accent Color - {item.name}")
+        if chosen.isValid():
+            hex_c = chosen.name()
+            item.color = hex_c
+            self.btn_color.setStyleSheet(f"background-color: {hex_c}; color: #000000; font-weight: bold;")
+            self.canvas.update()
+            self._record_history()
+
+    def _on_prop_opacity_changed(self, val: int):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            self.working_config.stats[s_id].opacity = val / 100.0
+            self.canvas.update()
+            self._record_history()
+
+    def _on_prop_bg_toggled(self, checked: bool):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            self.working_config.stats[s_id].show_subtle_bg = checked
+            self.canvas.update()
+            self._record_history()
+
+    def _on_prop_lock_toggled(self, checked: bool):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            self.working_config.stats[s_id].is_locked = checked
+
+    # --- Alignment Tools ---
+
+    def _align_left(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            self.working_config.stats[s_id].x = 24
+            self._on_geometry_modified(s_id)
+
+    def _align_center(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            item = self.working_config.stats[s_id]
+            w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
+            self.working_config.stats[s_id].x = (self.canvas.res_w - w) // 2
+            self._on_geometry_modified(s_id)
+
+    def _align_right(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            item = self.working_config.stats[s_id]
+            w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
+            self.working_config.stats[s_id].x = self.canvas.res_w - w - 24
+            self._on_geometry_modified(s_id)
+
+    def _align_top(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            self.working_config.stats[s_id].y = 24
+            self._on_geometry_modified(s_id)
+
+    def _align_middle(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            item = self.working_config.stats[s_id]
+            h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
+            self.working_config.stats[s_id].y = (self.canvas.res_h - h) // 2
+            self._on_geometry_modified(s_id)
+
+    def _align_bottom(self):
+        s_id = self.canvas.selected_stat_id
+        if s_id and s_id in self.working_config.stats:
+            item = self.working_config.stats[s_id]
+            h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
+            self.working_config.stats[s_id].y = self.canvas.res_h - h - 24
+            self._on_geometry_modified(s_id)
+
+    def _snap_selected_to_corner(self, corner: str):
+        s_id = self.canvas.selected_stat_id
+        if not s_id or s_id not in self.working_config.stats:
+            return
+        item = self.working_config.stats[s_id]
+        w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
+        h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
+
+        if corner == "tl":
+            item.x, item.y = 24, 24
+        elif corner == "tr":
+            item.x, item.y = self.canvas.res_w - w - 24, 24
+        elif corner == "bl":
+            item.x, item.y = 24, self.canvas.res_h - h - 24
+        elif corner == "br":
+            item.x, item.y = self.canvas.res_w - w - 24, self.canvas.res_h - h - 24
+
+        self._on_geometry_modified(s_id)
+
+    # --- Undo / Redo History ---
 
     def _record_history(self):
-        state = copy.deepcopy(self.working_config.to_dict())
-        if self._history_idx < len(self._history) - 1:
-            self._history = self._history[:self._history_idx + 1]
-        self._history.append(state)
-        self._history_idx = len(self._history) - 1
-        if len(self._history) > 25:
+        snapshot = copy.deepcopy(self.working_config.to_dict())
+        if self._history_idx >= 0 and self._history[self._history_idx] == snapshot:
+            return
+
+        self._history = self._history[:self._history_idx + 1]
+        self._history.append(snapshot)
+        if len(self._history) > 30:
             self._history.pop(0)
-            self._history_idx -= 1
+        self._history_idx = len(self._history) - 1
         self._update_undo_redo_ui()
 
     def _on_undo(self):
         if self._history_idx > 0:
             self._history_idx -= 1
-            self.working_config = OverlayConfig.from_dict(self._history[self._history_idx])
+            self.working_config = OverlayConfig.from_dict(copy.deepcopy(self._history[self._history_idx]))
             self.canvas.set_config(self.working_config)
             if self.canvas.selected_stat_id:
                 self._on_widget_selected(self.canvas.selected_stat_id)
@@ -951,7 +1300,7 @@ class VisualDesktopEditor(QWidget):
     def _on_redo(self):
         if self._history_idx < len(self._history) - 1:
             self._history_idx += 1
-            self.working_config = OverlayConfig.from_dict(self._history[self._history_idx])
+            self.working_config = OverlayConfig.from_dict(copy.deepcopy(self._history[self._history_idx]))
             self.canvas.set_config(self.working_config)
             if self.canvas.selected_stat_id:
                 self._on_widget_selected(self.canvas.selected_stat_id)
@@ -961,42 +1310,48 @@ class VisualDesktopEditor(QWidget):
         self.btn_undo.setEnabled(self._history_idx > 0)
         self.btn_redo.setEnabled(self._history_idx < len(self._history) - 1)
 
+    # --- Save / Cancel / Resets ---
+
     def _on_reset_selected(self):
-        stat_id = self.canvas.selected_stat_id
-        if not stat_id: return
+        s_id = self.canvas.selected_stat_id
+        if not s_id or s_id not in self.working_config.stats:
+            return
         catalog = get_default_stats_catalog()
-        if stat_id in catalog and stat_id in self.working_config.stats:
-            def_item = catalog[stat_id]
-            item = self.working_config.stats[stat_id]
-            item.x = def_item.x
-            item.y = def_item.y
-            item.width = def_item.width
-            item.height = def_item.height
-            item.graph_width = def_item.graph_width
-            item.graph_height = def_item.graph_height
-            self._on_widget_selected(stat_id)
-            self.canvas.update()
-            self._record_history()
+        if s_id in catalog:
+            def_item = catalog[s_id]
+            cur = self.working_config.stats[s_id]
+            cur.x = def_item.x
+            cur.y = def_item.y
+            cur.width = def_item.width
+            cur.height = def_item.height
+            cur.graph_width = def_item.graph_width
+            cur.graph_height = def_item.graph_height
+            self._on_geometry_modified(s_id)
 
     def _on_reset_all(self):
         catalog = get_default_stats_catalog()
         for stat_id, def_item in catalog.items():
             if stat_id in self.working_config.stats:
-                item = self.working_config.stats[stat_id]
-                item.x = def_item.x
-                item.y = def_item.y
+                cur = self.working_config.stats[stat_id]
+                cur.x = def_item.x
+                cur.y = def_item.y
+                cur.width = def_item.width
+                cur.height = def_item.height
+                cur.graph_width = def_item.graph_width
+                cur.graph_height = def_item.graph_height
+        self.canvas.update()
         if self.canvas.selected_stat_id:
             self._on_widget_selected(self.canvas.selected_stat_id)
-        self.canvas.update()
         self._record_history()
-
-    # --- Save & Cancel Actions ---
 
     def _on_save_clicked(self):
         self.save_and_apply.emit(self.working_config)
 
     def _on_cancel_clicked(self):
+        self.working_config = copy.deepcopy(self.original_config)
+        self.canvas.set_config(self.working_config)
         self.cancelled.emit()
 
-    def update_telemetry(self, snapshot: Dict[str, Any]):
-        self.canvas.update_live_telemetry(snapshot)
+
+# Backward compatibility alias for tests
+SimulatedDesktopCanvas = InteractiveDesktopCanvas

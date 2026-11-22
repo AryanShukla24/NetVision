@@ -13,10 +13,11 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
     QLabel, QStackedWidget, QFrame, QScrollArea, QMessageBox, QStatusBar
 )
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon, QCloseEvent
+from PySide6.QtCore import Qt, QTimer, QSize
+from PySide6.QtGui import QIcon, QCloseEvent, QPixmap
 
 from netvision.config import APP_NAME, APP_SUBTITLE, APP_VERSION, COLORS, APP_ICON_PNG, APP_ICON_ICO
+from netvision.ui.components.icons import get_icon
 from netvision.database.db_manager import DatabaseManager
 from netvision.database.models import ConnectedInterfaceInfo
 from netvision.core.wifi_scanner import WifiScanner
@@ -119,12 +120,23 @@ class MainWindow(QMainWindow):
         s_layout.setContentsMargins(10, 16, 10, 16)
         s_layout.setSpacing(4)
 
-        # App Branding Header
+        # App Branding Header with Authentic NetVision Logo
         header_frame = QFrame()
         header_frame.setObjectName("SidebarHeader")
-        h_layout = QVBoxLayout(header_frame)
-        h_layout.setContentsMargins(10, 8, 10, 12)
-        h_layout.setSpacing(3)
+        h_main_layout = QHBoxLayout(header_frame)
+        h_main_layout.setContentsMargins(8, 10, 8, 12)
+        h_main_layout.setSpacing(10)
+
+        if APP_ICON_PNG.exists():
+            lbl_logo = QLabel()
+            logo_pix = QPixmap(str(APP_ICON_PNG)).scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            lbl_logo.setPixmap(logo_pix)
+            lbl_logo.setFixedSize(32, 32)
+            h_main_layout.addWidget(lbl_logo)
+
+        h_text_layout = QVBoxLayout()
+        h_text_layout.setContentsMargins(0, 0, 0, 0)
+        h_text_layout.setSpacing(2)
 
         lbl_title = QLabel(APP_NAME)
         lbl_title.setObjectName("SidebarAppTitle")
@@ -132,29 +144,32 @@ class MainWindow(QMainWindow):
         lbl_subtitle.setObjectName("SidebarAppSubtitle")
         lbl_subtitle.setWordWrap(True)
 
-        h_layout.addWidget(lbl_title)
-        h_layout.addWidget(lbl_subtitle)
+        h_text_layout.addWidget(lbl_title)
+        h_text_layout.addWidget(lbl_subtitle)
+        h_main_layout.addLayout(h_text_layout)
         s_layout.addWidget(header_frame)
 
-        # Nav Buttons List
+        # Nav Buttons List with Lucide Vector Icons
         nav_items = [
-            ("Dashboard", 0),
-            ("Wi-Fi Scanner", 1),
-            ("Signal Analyzer", 2),
-            ("Speed Test", 3),
-            ("Latency Monitor", 4),
-            ("Channel Analyzer", 5),
-            ("History & Analytics", 6),
-            ("Location Comparison", 7),
-            ("Academic Experiment", 8),
-            ("Audit Reports", 9),
-            ("Settings", 10),
-            ("About NetVision", 11),
+            ("Dashboard", "dashboard", 0),
+            ("Wi-Fi Scanner", "wifi", 1),
+            ("Signal Analyzer", "signal", 2),
+            ("Speed Test", "speed", 3),
+            ("Latency Monitor", "latency", 4),
+            ("Channel Analyzer", "channel", 5),
+            ("History & Analytics", "history", 6),
+            ("Location Comparison", "compare", 7),
+            ("Academic Experiment", "experiment", 8),
+            ("Audit Reports", "reports", 9),
+            ("Settings", "settings", 10),
+            ("About NetVision", "about", 11),
         ]
 
-        for text, index in nav_items:
-            btn = QPushButton(text)
+        for text, icon_name, index in nav_items:
+            btn = QPushButton(f"  {text}")
             btn.setProperty("class", "NavButton")
+            btn.setIcon(get_icon(icon_name, 18))
+            btn.setIconSize(QSize(18, 18))
             btn.setCheckable(True)
             btn.clicked.connect(lambda _, idx=index: self.switch_page(idx))
             s_layout.addWidget(btn)

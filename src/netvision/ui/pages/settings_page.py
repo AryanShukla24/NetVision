@@ -196,6 +196,7 @@ class SettingsPage(QWidget):
         # 3. Positioning Subsection
         self.tab_positioning = self._build_positioning_tab()
         self.tab_widget.addTab(self.tab_positioning, "Positioning")
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
 
         # 4. Appearance Subsection
         self.tab_appearance = self._build_appearance_tab()
@@ -606,12 +607,12 @@ class SettingsPage(QWidget):
     def _build_positioning_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setSpacing(8)
+        layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.pos_stack = QStackedWidget()
 
-        # Page 0: Positioning Overview & Launcher Card with ScrollArea for clean visibility
+        # Page 0: Positioning Overview & Coordinates Table
         scroll_overview = QScrollArea()
         scroll_overview.setWidgetResizable(True)
         scroll_overview.setFrameShape(QFrame.NoFrame)
@@ -732,6 +733,12 @@ class SettingsPage(QWidget):
         layout.addWidget(self.pos_stack)
         return widget
 
+    def _on_tab_changed(self, index: int):
+        if index == 2:  # Positioning tab
+            if hasattr(self, 'visual_editor'):
+                self.visual_editor.capture_desktop()
+                self.visual_editor._apply_splitter_proportions()
+
     def _open_visual_editor(self):
         self.visual_editor.working_config = copy.deepcopy(self.config)
         self.visual_editor.original_config = copy.deepcopy(self.config)
@@ -754,6 +761,70 @@ class SettingsPage(QWidget):
 
     def _on_visual_editor_cancelled(self):
         self.pos_stack.setCurrentIndex(0)
+
+    def _populate_positioning_table(self):
+        self.table_pos.setRowCount(0)
+        for row, (stat_id, item) in enumerate(self.config.stats.items()):
+            self.table_pos.insertRow(row)
+
+            # 0: Name
+            s_name = QTableWidgetItem(f"  {item.name} ({item.mode.capitalize()})")
+            s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
+            s_name.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+            self.table_pos.setItem(row, 0, s_name)
+
+            # 1: X Coordinate
+            spin_x = QSpinBox()
+            spin_x.setRange(0, 7680)
+            spin_x.setValue(item.x)
+            spin_x.setMinimumHeight(28)
+            spin_x.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, x=v))
+            self.table_pos.setCellWidget(row, 1, self._wrap_cell_widget(spin_x, Qt.AlignCenter))
+
+            # 2: Y Coordinate
+            spin_y = QSpinBox()
+            spin_y.setRange(0, 4320)
+            spin_y.setValue(item.y)
+            spin_y.setMinimumHeight(28)
+            spin_y.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, y=v))
+            self.table_pos.setCellWidget(row, 2, self._wrap_cell_widget(spin_y, Qt.AlignCenter))
+
+            # 3: Quick Snap Corner
+            combo_corner = QComboBox()
+            combo_corner.addItem("Snap Corner...", "")
+            combo_corner.addItem("Top-Left", (24, 24))
+            combo_corner.addItem("Top-Right", (1180, 24))
+            combo_corner.addItem("Bottom-Left", (24, 700))
+            combo_corner.addItem("Bottom-Right", (1180, 700))
+            combo_corner.setMinimumHeight(28)
+            combo_corner.currentIndexChanged.connect(
+                lambda idx, s=stat_id, c=combo_corner, sx=spin_x, sy=spin_y: self._on_snap_corner(s, c, sx, sy)
+            )
+            self.table_pos.setCellWidget(row, 3, self._wrap_cell_widget(combo_corner, Qt.AlignCenter))
+
+            # 4: Reset single button
+            btn_res = QPushButton("Reset Pos")
+            btn_res.setProperty("class", "SecondaryButton")
+            btn_res.setMinimumHeight(28)
+            btn_res.clicked.connect(lambda _, s=stat_id, sx=spin_x, sy=spin_y: self._on_reset_single_pos(s, sx, sy))
+            self.table_pos.setCellWidget(row, 4, self._wrap_cell_widget(btn_res, Qt.AlignCenter))
+
+            # 5: Lock checkbox
+            chk_lock = QCheckBox("Lock")
+            chk_lock.setChecked(item.is_locked)
+            chk_lock.toggled.connect(lambda chk, s=stat_id: self._on_single_lock_toggled(s, chk))
+            self.table_pos.setCellWidget(row, 5, self._wrap_cell_widget(chk_lock, Qt.AlignCenter))
+
+        self._adjust_table_columns()
+
+    def _adjust_table_columns(self):
+        w = max(700, self.table_pos.viewport().width())
+        self.table_pos.setColumnWidth(0, int(w * 0.28))
+        self.table_pos.setColumnWidth(1, int(w * 0.15))
+        self.table_pos.setColumnWidth(2, int(w * 0.15))
+        self.table_pos.setColumnWidth(3, max(150, int(w * 0.24)))
+        self.table_pos.setColumnWidth(4, max(85, int(w * 0.10)))
+        self.table_pos.setColumnWidth(5, max(55, int(w * 0.08)))
 
     def _align_preset_corner(self, corner: str):
         primary = QGuiApplication.primaryScreen()
@@ -809,58 +880,6 @@ class SettingsPage(QWidget):
         self._populate_stats_table()
         self._populate_positioning_table()
 
-    def _populate_positioning_table(self):
-        self.table_pos.setRowCount(0)
-        for row, (stat_id, item) in enumerate(self.config.stats.items()):
-            self.table_pos.insertRow(row)
-
-            # 0: Name
-            s_name = QTableWidgetItem(f"  {item.name} ({item.mode.capitalize()})")
-            s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
-            s_name.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-            self.table_pos.setItem(row, 0, s_name)
-
-            # 1: X Coordinate
-            spin_x = QSpinBox()
-            spin_x.setRange(0, 7680)
-            spin_x.setValue(item.x)
-            spin_x.setMinimumHeight(28)
-            spin_x.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, x=v))
-            self.table_pos.setCellWidget(row, 1, self._wrap_cell_widget(spin_x, Qt.AlignCenter))
-
-            # 2: Y Coordinate
-            spin_y = QSpinBox()
-            spin_y.setRange(0, 4320)
-            spin_y.setValue(item.y)
-            spin_y.setMinimumHeight(28)
-            spin_y.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, y=v))
-            self.table_pos.setCellWidget(row, 2, self._wrap_cell_widget(spin_y, Qt.AlignCenter))
-
-            # 3: Quick Snap Corner
-            combo_corner = QComboBox()
-            combo_corner.addItem("Snap Corner...", "")
-            combo_corner.addItem("Top-Left", (24, 24))
-            combo_corner.addItem("Top-Right", (1180, 24))
-            combo_corner.addItem("Bottom-Left", (24, 700))
-            combo_corner.addItem("Bottom-Right", (1180, 700))
-            combo_corner.setMinimumHeight(28)
-            combo_corner.currentIndexChanged.connect(
-                lambda idx, s=stat_id, c=combo_corner, sx=spin_x, sy=spin_y: self._on_snap_corner(s, c, sx, sy)
-            )
-            self.table_pos.setCellWidget(row, 3, self._wrap_cell_widget(combo_corner, Qt.AlignCenter))
-
-            # 4: Reset single button
-            btn_res = QPushButton("Reset Pos")
-            btn_res.setProperty("class", "SecondaryButton")
-            btn_res.setMinimumHeight(28)
-            btn_res.clicked.connect(lambda _, s=stat_id, sx=spin_x, sy=spin_y: self._on_reset_single_pos(s, sx, sy))
-            self.table_pos.setCellWidget(row, 4, self._wrap_cell_widget(btn_res, Qt.AlignCenter))
-
-            # 5: Lock checkbox
-            chk_lock = QCheckBox("Lock")
-            chk_lock.setChecked(item.is_locked)
-            chk_lock.toggled.connect(lambda chk, s=stat_id: self._on_single_lock_toggled(s, chk))
-            self.table_pos.setCellWidget(row, 5, self._wrap_cell_widget(chk_lock, Qt.AlignCenter))
 
     def _on_coord_changed(self, stat_id: str, x: Optional[int] = None, y: Optional[int] = None):
         if stat_id in self.config.stats:
