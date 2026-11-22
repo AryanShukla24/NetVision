@@ -1,11 +1,11 @@
 """
 NetVision - Statistics Overlay Configuration and Presets
-Defines data structures, serialization, display modes, and built-in presets
-for the real-time statistics overlay system.
+Supports multi-window independent floating widgets, per-widget screen positioning,
+transparency styling, and strict disabled-by-default initialization.
 """
 
 from dataclasses import dataclass, field, asdict
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import json
 import logging
 from pathlib import Path
@@ -13,9 +13,7 @@ from netvision.config import CONFIG_DIR
 
 logger = logging.getLogger(__name__)
 
-# Default config file path in %LOCALAPPDATA%\NetVision\config\
 OVERLAY_CONFIG_FILE = CONFIG_DIR / "overlay_config.json"
-PRESETS_DIR = CONFIG_DIR / "overlay_presets"
 
 
 class DisplayMode:
@@ -39,30 +37,39 @@ class StatItemConfig:
     mode: str = DisplayMode.NUMBERS   # "hidden", "numbers", "graph"
     unit: str = ""                   # e.g. "%", "ms", "Mbps", "FPS"
     
-    # 2D Canvas positioning & geometry
-    x: int = 10
-    y: int = 10
-    width: int = 180
-    height: int = 48
+    # Independent Multi-Window Desktop Coordinates
+    x: int = 100
+    y: int = 100
+    width: int = 160
+    height: int = 44
+    
+    # Appearance & Styling
+    opacity: float = 0.95            # Window opacity (0.2 to 1.0)
+    bg_opacity: float = 0.0          # Background container opacity (0.0 = completely transparent!)
+    show_subtle_bg: bool = False     # When False, background is genuinely transparent
+    show_shadow: bool = True         # Subtle text shadow for high contrast & legibility
+    border_radius: int = 6
+    text_color: str = "#f8fafc"
+    color: str = "#38bdf8"           # Accent / Graph color
     
     # Numerical style controls
     font_size: int = 13
-    padding: int = 8
+    padding: int = 6
     
     # Graph style controls
     graph_width: int = 200
-    graph_height: int = 65
+    graph_height: int = 60
     graph_scale_mode: str = "auto"   # "auto" or "fixed"
     graph_min: float = 0.0
     graph_max: float = 100.0
     history_len: int = 60            # 20 to 120 samples
     
-    # Aesthetic coloring & appearance
-    color: str = "#38bdf8"           # Accent hex color
+    # Window behavior
+    is_locked: bool = False          # When locked, ignores mouse drags to prevent misclicks in games
+    enabled: bool = True             # Independent visibility toggle
     
-    # Shortcut System: STRICT REQUIREMENT - All shortcuts unassigned by default!
+    # Shortcuts: STRICT REQUIREMENT - All shortcuts unassigned by default!
     shortcut: str = ""               # Unassigned by default ("")
-    enabled: bool = True             # Runtime visibility toggle via shortcut
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -75,27 +82,55 @@ class StatItemConfig:
 
 
 def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
-    """Returns the full catalog of 11 supported statistics with default layout properties."""
+    """
+    Returns the catalog of all 11 supported statistics configured with
+    intelligent screen corner placement for multi-window floating mode.
+    """
     return {
+        # Top-Right System / Gaming Telemetry
         "fps": StatItemConfig(
             stat_id="fps",
             name="FPS (Frame Rate)",
             category="system",
             mode=DisplayMode.NUMBERS,
             unit="FPS",
-            x=12, y=12, width=180, height=48,
-            graph_width=220, graph_height=65,
+            x=1720, y=24, width=150, height=44,
+            graph_width=210, graph_height=65,
             color="#34d399",
             shortcut=""
         ),
+        "ping": StatItemConfig(
+            stat_id="ping",
+            name="Ping / Latency",
+            category="network",
+            mode=DisplayMode.NUMBERS,
+            unit="ms",
+            x=1720, y=74, width=150, height=44,
+            graph_width=210, graph_height=65,
+            color="#fbbf24",
+            shortcut=""
+        ),
+        "wifi_signal": StatItemConfig(
+            stat_id="wifi_signal",
+            name="Wi-Fi Signal",
+            category="network",
+            mode=DisplayMode.NUMBERS,
+            unit="%",
+            x=1720, y=124, width=150, height=44,
+            graph_width=210, graph_height=65,
+            color="#34d399",
+            shortcut=""
+        ),
+
+        # Top-Left Resource Telemetry
         "cpu": StatItemConfig(
             stat_id="cpu",
             name="CPU Usage",
             category="system",
             mode=DisplayMode.GRAPH,
             unit="%",
-            x=12, y=66, width=180, height=48,
-            graph_width=220, graph_height=65,
+            x=24, y=24, width=190, height=65,
+            graph_width=190, graph_height=65,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
             color="#38bdf8",
             shortcut=""
@@ -106,80 +141,34 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.GRAPH,
             unit="%",
-            x=12, y=137, width=180, height=48,
-            graph_width=220, graph_height=65,
+            x=24, y=96, width=190, height=65,
+            graph_width=190, graph_height=65,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
             color="#a78bfa",
             shortcut=""
         ),
         "ram": StatItemConfig(
             stat_id="ram",
-            name="RAM / Memory Usage",
+            name="RAM Usage",
             category="system",
             mode=DisplayMode.NUMBERS,
             unit="%",
-            x=12, y=208, width=180, height=48,
-            graph_width=220, graph_height=65,
-            graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
+            x=24, y=168, width=190, height=44,
+            graph_width=190, graph_height=65,
             color="#f472b6",
             shortcut=""
         ),
+
+        # Bottom-Right Network I/O
         "net_io": StatItemConfig(
             stat_id="net_io",
-            name="Network I/O Throughput",
+            name="Network I/O",
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="KB/s",
-            x=12, y=262, width=180, height=48,
+            x=1670, y=920, width=200, height=44,
             graph_width=220, graph_height=65,
             color="#38bdf8",
-            shortcut=""
-        ),
-        "wifi_signal": StatItemConfig(
-            stat_id="wifi_signal",
-            name="Wi-Fi Signal Quality",
-            category="network",
-            mode=DisplayMode.NUMBERS,
-            unit="%",
-            x=200, y=12, width=180, height=48,
-            graph_width=220, graph_height=65,
-            graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
-            color="#34d399",
-            shortcut=""
-        ),
-        "ping": StatItemConfig(
-            stat_id="ping",
-            name="Round-Trip Ping / Latency",
-            category="network",
-            mode=DisplayMode.NUMBERS,
-            unit="ms",
-            x=200, y=66, width=180, height=48,
-            graph_width=220, graph_height=65,
-            graph_scale_mode="auto", graph_min=0.0, graph_max=150.0,
-            color="#fbbf24",
-            shortcut=""
-        ),
-        "jitter": StatItemConfig(
-            stat_id="jitter",
-            name="Network Jitter",
-            category="network",
-            mode=DisplayMode.NUMBERS,
-            unit="ms",
-            x=200, y=120, width=180, height=48,
-            graph_width=220, graph_height=65,
-            color="#f97316",
-            shortcut=""
-        ),
-        "packet_loss": StatItemConfig(
-            stat_id="packet_loss",
-            name="Packet Loss",
-            category="network",
-            mode=DisplayMode.NUMBERS,
-            unit="%",
-            x=200, y=174, width=180, height=48,
-            graph_width=220, graph_height=65,
-            graph_scale_mode="fixed", graph_min=0.0, graph_max=20.0,
-            color="#f87171",
             shortcut=""
         ),
         "download_speed": StatItemConfig(
@@ -188,7 +177,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="Mbps",
-            x=200, y=228, width=180, height=48,
+            x=1670, y=870, width=200, height=44,
             graph_width=220, graph_height=65,
             color="#60a5fa",
             shortcut=""
@@ -199,9 +188,33 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="Mbps",
-            x=200, y=282, width=180, height=48,
+            x=1670, y=820, width=200, height=44,
             graph_width=220, graph_height=65,
             color="#818cf8",
+            shortcut=""
+        ),
+
+        # Bottom-Left Stability Telemetry
+        "jitter": StatItemConfig(
+            stat_id="jitter",
+            name="Network Jitter",
+            category="network",
+            mode=DisplayMode.NUMBERS,
+            unit="ms",
+            x=24, y=920, width=160, height=44,
+            graph_width=200, graph_height=65,
+            color="#f97316",
+            shortcut=""
+        ),
+        "packet_loss": StatItemConfig(
+            stat_id="packet_loss",
+            name="Packet Loss",
+            category="network",
+            mode=DisplayMode.NUMBERS,
+            unit="%",
+            x=24, y=870, width=160, height=44,
+            graph_width=200, graph_height=65,
+            color="#f87171",
             shortcut=""
         ),
     }
@@ -209,55 +222,33 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
 
 @dataclass
 class OverlayConfig:
-    # Master controls
-    master_enabled: bool = True
-    active_preset: str = "Detailed"
+    # STRICT REQUIREMENT: Overlay is DISABLED by default!
+    master_enabled: bool = False
+    master_locked: bool = False
+    master_shortcut: str = ""        # Global hotkey to toggle all widgets (unassigned by default)
     
-    # Overlay Window Aesthetics & Position
-    opacity: float = 0.90
-    bg_color: str = "#0f172a"
-    border_color: str = "#334155"
-    text_color: str = "#f8fafc"
-    locked: bool = False             # When locked, window ignores drag/repositioning
-    always_on_top: bool = True
-    
-    # Window placement
-    window_x: int = 50
-    window_y: int = 50
-    window_width: int = 420
-    window_height: int = 380
-    
-    # Editor & Grid Snapping
-    snap_to_grid: bool = True
-    grid_size: int = 8
-    show_alignment_guides: bool = True
-    
-    # Refresh rate
-    refresh_rate_ms: int = 1000      # 500ms to 5000ms
+    # Global Appearance Defaults
+    transparent_bg: bool = True      # Default appearance is genuinely transparent
+    global_opacity: float = 0.95
+    subtle_bg_opacity: float = 0.25  # When subtle background is toggled
+    active_preset: str = "Performance"
+    refresh_rate_ms: int = 1000
     
     # Individual Statistics items
     stats: Dict[str, StatItemConfig] = field(default_factory=get_default_stats_catalog)
     
-    # Saved custom presets: name -> dict of stat settings
+    # Saved custom presets
     custom_presets: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "master_enabled": self.master_enabled,
+            "master_locked": self.master_locked,
+            "master_shortcut": self.master_shortcut,
+            "transparent_bg": self.transparent_bg,
+            "global_opacity": self.global_opacity,
+            "subtle_bg_opacity": self.subtle_bg_opacity,
             "active_preset": self.active_preset,
-            "opacity": self.opacity,
-            "bg_color": self.bg_color,
-            "border_color": self.border_color,
-            "text_color": self.text_color,
-            "locked": self.locked,
-            "always_on_top": self.always_on_top,
-            "window_x": self.window_x,
-            "window_y": self.window_y,
-            "window_width": self.window_width,
-            "window_height": self.window_height,
-            "snap_to_grid": self.snap_to_grid,
-            "grid_size": self.grid_size,
-            "show_alignment_guides": self.show_alignment_guides,
             "refresh_rate_ms": self.refresh_rate_ms,
             "stats": {k: v.to_dict() for k, v in self.stats.items()},
             "custom_presets": self.custom_presets
@@ -267,11 +258,9 @@ class OverlayConfig:
     def from_dict(cls, data: Dict[str, Any]) -> "OverlayConfig":
         cfg = cls()
         for k in (
-            "master_enabled", "active_preset", "opacity", "bg_color",
-            "border_color", "text_color", "locked", "always_on_top",
-            "window_x", "window_y", "window_width", "window_height",
-            "snap_to_grid", "grid_size", "show_alignment_guides",
-            "refresh_rate_ms", "custom_presets"
+            "master_enabled", "master_locked", "master_shortcut", "transparent_bg",
+            "global_opacity", "subtle_bg_opacity", "active_preset", "refresh_rate_ms",
+            "custom_presets"
         ):
             if k in data:
                 setattr(cfg, k, data[k])
@@ -281,7 +270,6 @@ class OverlayConfig:
         for stat_id, default_item in catalog.items():
             if stat_id in saved_stats:
                 item_data = saved_stats[stat_id]
-                # Keep fixed properties like stat_id and category
                 item_data["stat_id"] = stat_id
                 catalog[stat_id] = StatItemConfig.from_dict(item_data)
         cfg.stats = catalog
@@ -300,131 +288,56 @@ class OverlayConfig:
 
     @classmethod
     def load(cls, filepath: Optional[Path] = None) -> "OverlayConfig":
-        """Loads configuration from JSON file or initializes default."""
+        """Loads configuration from JSON file or initializes default (disabled)."""
         path = filepath or OVERLAY_CONFIG_FILE
         if path.exists():
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                logger.info(f"Loaded overlay configuration from {path}")
                 return cls.from_dict(data)
             except Exception as e:
                 logger.warning(f"Could not parse {path}, using defaults: {e}")
         cfg = cls()
-        cfg.apply_preset("Detailed")
+        cfg.apply_preset("Performance")
+        cfg.master_enabled = False  # Ensure disabled on fresh initialization
         return cfg
 
-    # --- Built-in Presets Engine ---
-
     def apply_preset(self, preset_name: str):
-        """
-        Applies a named preset: 'Minimal', 'Performance', 'Detailed',
-        or a user custom preset name.
-        """
+        """Applies a named preset: 'Minimal', 'Performance', 'Detailed', or custom."""
         self.active_preset = preset_name
-        
+
         if preset_name == "Minimal":
-            # Essential lightweight stats in single-column numbers mode
-            self.window_width = 240
-            self.window_height = 190
-            
-            y_offset = 12
-            for stat_id, item in self.stats.items():
-                if stat_id in ("ping", "wifi_signal", "fps"):
+            # Only top-right essential widgets (FPS, Ping, Wi-Fi Signal)
+            for s_id, item in self.stats.items():
+                if s_id in ("fps", "ping", "wifi_signal"):
                     item.mode = DisplayMode.NUMBERS
                     item.enabled = True
-                    item.x = 12
-                    item.y = y_offset
-                    item.width = 216
-                    item.height = 46
-                    y_offset += 54
                 else:
                     item.mode = DisplayMode.DONT_SHOW
+                    item.enabled = False
 
         elif preset_name == "Performance":
-            # Gaming and system resource focus
-            self.window_width = 460
-            self.window_height = 280
-            
-            # Left column: FPS, RAM, Ping, Net I/O
-            y_left = 12
-            for s in ("fps", "ram", "ping", "net_io"):
-                if s in self.stats:
-                    self.stats[s].mode = DisplayMode.NUMBERS
-                    self.stats[s].enabled = True
-                    self.stats[s].x = 12
-                    self.stats[s].y = y_left
-                    self.stats[s].width = 190
-                    self.stats[s].height = 48
-                    y_left += 54
-            
-            # Right column: CPU Graph, GPU Graph
-            y_right = 12
-            for s in ("cpu", "gpu"):
-                if s in self.stats:
-                    self.stats[s].mode = DisplayMode.GRAPH
-                    self.stats[s].enabled = True
-                    self.stats[s].x = 214
-                    self.stats[s].y = y_right
-                    self.stats[s].width = 230
-                    self.stats[s].height = 100
-                    self.stats[s].graph_width = 230
-                    self.stats[s].graph_height = 100
-                    y_right += 108
-            
-            for s in ("wifi_signal", "jitter", "packet_loss", "download_speed", "upload_speed"):
-                if s in self.stats:
-                    self.stats[s].mode = DisplayMode.DONT_SHOW
+            # System focus: CPU & GPU graphs (top left), FPS & RAM (top right), Ping (top right)
+            for s_id, item in self.stats.items():
+                if s_id in ("cpu", "gpu"):
+                    item.mode = DisplayMode.GRAPH
+                    item.enabled = True
+                elif s_id in ("fps", "ram", "ping"):
+                    item.mode = DisplayMode.NUMBERS
+                    item.enabled = True
+                else:
+                    item.mode = DisplayMode.DONT_SHOW
+                    item.enabled = False
 
         elif preset_name == "Detailed":
-            # Complete system and network telemetry dashboard
-            self.window_width = 490
-            self.window_height = 490
-            
-            # Column 1 (x=12): System + Speeds
-            col1 = [
-                ("fps", DisplayMode.NUMBERS, 46),
-                ("cpu", DisplayMode.GRAPH, 80),
-                ("gpu", DisplayMode.GRAPH, 80),
-                ("ram", DisplayMode.NUMBERS, 46),
-                ("download_speed", DisplayMode.NUMBERS, 46),
-                ("upload_speed", DisplayMode.NUMBERS, 46),
-            ]
-            y = 12
-            for s_id, mode, h in col1:
-                if s_id in self.stats:
-                    it = self.stats[s_id]
-                    it.mode = mode
-                    it.enabled = True
-                    it.x = 12
-                    it.y = y
-                    it.width = 225
-                    it.height = h
-                    it.graph_width = 225
-                    it.graph_height = h
-                    y += h + 8
-
-            # Column 2 (x=248): Network & Wi-Fi
-            col2 = [
-                ("wifi_signal", DisplayMode.GRAPH, 80),
-                ("ping", DisplayMode.GRAPH, 80),
-                ("jitter", DisplayMode.NUMBERS, 46),
-                ("packet_loss", DisplayMode.NUMBERS, 46),
-                ("net_io", DisplayMode.GRAPH, 80),
-            ]
-            y = 12
-            for s_id, mode, h in col2:
-                if s_id in self.stats:
-                    it = self.stats[s_id]
-                    it.mode = mode
-                    it.enabled = True
-                    it.x = 248
-                    it.y = y
-                    it.width = 225
-                    it.height = h
-                    it.graph_width = 225
-                    it.graph_height = h
-                    y += h + 8
+            # All 11 metrics visible across corners
+            for s_id, item in self.stats.items():
+                if s_id in ("cpu", "gpu", "net_io"):
+                    item.mode = DisplayMode.GRAPH
+                    item.enabled = True
+                else:
+                    item.mode = DisplayMode.NUMBERS
+                    item.enabled = True
 
         elif preset_name in self.custom_presets:
             saved_preset = self.custom_presets[preset_name]
@@ -432,19 +345,11 @@ class OverlayConfig:
             for s_id, it_data in stats_data.items():
                 if s_id in self.stats:
                     self.stats[s_id] = StatItemConfig.from_dict(it_data)
-            if "window_width" in saved_preset:
-                self.window_width = saved_preset["window_width"]
-            if "window_height" in saved_preset:
-                self.window_height = saved_preset["window_height"]
 
     def save_custom_preset(self, name: str):
-        """Saves current statistics configuration as a custom preset."""
-        preset_data = {
-            "window_width": self.window_width,
-            "window_height": self.window_height,
+        self.custom_presets[name] = {
             "stats": {k: v.to_dict() for k, v in self.stats.items()}
         }
-        self.custom_presets[name] = preset_data
         self.active_preset = name
         self.save()
 
@@ -452,7 +357,7 @@ class OverlayConfig:
         if name in self.custom_presets:
             del self.custom_presets[name]
             if self.active_preset == name:
-                self.active_preset = "Detailed"
+                self.active_preset = "Performance"
             self.save()
             return True
         return False

@@ -1,12 +1,13 @@
 """
-NetVision - Advanced System & Overlay Settings Page
-Organized tabbed interface managing:
-1. Overlay Settings (master toggle, opacity, locking, geometry, refresh rate)
-2. Statistics (per-stat display modes: Don't Show, Numbers, Graph)
-3. Visual Layout Editor (drag-and-drop, 8-point resizing, snapping, undo/redo)
-4. Keyboard Shortcuts (individual hotkeys, all unassigned by default, conflict checks)
-5. Presets (Minimal, Performance, Detailed, Custom presets, JSON export/import)
-6. Network Thresholds & Locations (signal, ping, packet loss, speed thresholds, custom locations)
+NetVision - Comprehensive Settings Page
+Features dedicated subsections for:
+1. General (master overlay toggle, start/stop, individual widget visibility, position lock)
+2. Individual Statistics (mode, opacity, font size, dimensions, colors)
+3. Positioning (individual X/Y, reset position per widget, quick corner snap, reset all)
+4. Appearance (transparent background by default, subtle bg toggle, shadow, rounded corners)
+5. Shortcuts (master toggle hotkey, per-statistic hotkeys, conflict detection, unassigned by default)
+6. Presets (Minimal, Performance, Detailed, Custom presets, JSON export/import)
+7. Network Thresholds & Locations (Wi-Fi, latency, loss, speed evaluation thresholds, location manager)
 """
 
 from typing import List, Dict, Any, Optional
@@ -19,16 +20,15 @@ from PySide6.QtWidgets import (
     QFrame, QGridLayout, QSpinBox, QDoubleSpinBox, QLineEdit,
     QListWidget, QMessageBox, QComboBox, QTabWidget, QSlider,
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QColorDialog, QFileDialog, QInputDialog
+    QColorDialog, QFileDialog, QInputDialog, QScrollArea, QGroupBox
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence
 
 from netvision.config import DEFAULT_THRESHOLDS, DEFAULT_PING_TARGETS, COLORS
 from netvision.core.overlay_config import (
-    OverlayConfig, DisplayMode, StatItemConfig
+    OverlayConfig, DisplayMode, StatItemConfig, get_default_stats_catalog
 )
-from netvision.ui.overlay.layout_editor import OverlayLayoutEditor
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class KeyRecorderButton(QPushButton):
 
     def _start_recording(self):
         self.is_recording = True
-        self.setText("Press key combination...")
+        self.setText("Press shortcut keys...")
         self.setStyleSheet("background-color: #0284c7; color: #ffffff; font-weight: bold;")
         self.setFocus()
 
@@ -59,18 +59,15 @@ class KeyRecorderButton(QPushButton):
         key = event.key()
         modifiers = event.modifiers()
 
-        # Ignore standalone modifier presses
         if key in (Qt.Key_Control, Qt.Key_Shift, Qt.Key_Alt, Qt.Key_Meta):
             return
 
-        # If user presses Escape, cancel recording
         if key == Qt.Key_Escape:
             self.is_recording = False
             self.setText(self.current_key if self.current_key else "(None)")
             self.setStyleSheet("")
             return
 
-        # Construct key sequence string
         key_seq = QKeySequence(modifiers | key)
         key_str = key_seq.toString(QKeySequence.PortableText)
 
@@ -105,14 +102,14 @@ class SettingsPage(QWidget):
         title_box = QVBoxLayout()
         title = QLabel("System Settings & Customization Hub")
         title.setProperty("class", "PageTitle")
-        subtitle = QLabel("Configure real-time statistics overlay, visual editor, global shortcuts, presets, and diagnostic thresholds")
+        subtitle = QLabel("Configure independent floating widgets, appearance, positioning, shortcuts, and network diagnostics")
         subtitle.setProperty("class", "PageSubtitle")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
         header_layout.addLayout(title_box)
         header_layout.addStretch()
 
-        self.btn_restore_all = QPushButton("↺ Restore All Defaults")
+        self.btn_restore_all = QPushButton("↺ Restore Defaults")
         self.btn_restore_all.setProperty("class", "SecondaryButton")
         self.btn_restore_all.clicked.connect(self._on_restore_clicked)
         header_layout.addWidget(self.btn_restore_all)
@@ -124,7 +121,7 @@ class SettingsPage(QWidget):
 
         main_layout.addLayout(header_layout)
 
-        # Modern Sub-Tabs
+        # Tabbed Subsections
         self.tab_widget = QTabWidget()
         self.tab_widget.setStyleSheet(f"""
             QTabWidget::pane {{
@@ -136,51 +133,55 @@ class SettingsPage(QWidget):
             QTabBar::tab {{
                 background: {COLORS['bg_surface']};
                 color: {COLORS['text_secondary']};
-                padding: 8px 16px;
+                padding: 9px 18px;
                 margin-right: 4px;
                 border-top-left-radius: 6px;
                 border-top-right-radius: 6px;
                 font-weight: 600;
+                font-size: 12px;
             }}
             QTabBar::tab:selected {{
                 background: {COLORS['primary_dark']};
-                color: {COLORS['text_primary']};
+                color: #ffffff;
             }}
             QTabBar::tab:hover:!selected {{
                 background: {COLORS['bg_surface_hover']};
             }}
         """)
 
-        # Tab 1: Overlay Window Controls
-        self.tab_overlay = self._build_overlay_tab()
-        self.tab_widget.addTab(self.tab_overlay, "🖥 Overlay Window")
+        # 1. General Subsection
+        self.tab_general = self._build_general_tab()
+        self.tab_widget.addTab(self.tab_general, "⚡ General")
 
-        # Tab 2: Statistics Config (Visibility & Modes)
-        self.tab_statistics = self._build_statistics_tab()
-        self.tab_widget.addTab(self.tab_statistics, "📊 Statistics Config")
+        # 2. Individual Statistics Subsection
+        self.tab_stats = self._build_statistics_tab()
+        self.tab_widget.addTab(self.tab_stats, "📊 Individual Statistics")
 
-        # Tab 3: Visual Layout Editor
-        self.layout_editor = OverlayLayoutEditor(self.config, self)
-        self.layout_editor.layout_saved.connect(self._on_editor_layout_changed)
-        self.tab_widget.addTab(self.layout_editor, "📐 Layout Editor")
+        # 3. Positioning Subsection
+        self.tab_positioning = self._build_positioning_tab()
+        self.tab_widget.addTab(self.tab_positioning, "📍 Positioning")
 
-        # Tab 4: Shortcuts (All unassigned by default)
+        # 4. Appearance Subsection
+        self.tab_appearance = self._build_appearance_tab()
+        self.tab_widget.addTab(self.tab_appearance, "🎨 Appearance")
+
+        # 5. Shortcuts Subsection
         self.tab_shortcuts = self._build_shortcuts_tab()
         self.tab_widget.addTab(self.tab_shortcuts, "⌨ Shortcuts")
 
-        # Tab 5: Presets Manager
+        # 6. Presets Subsection
         self.tab_presets = self._build_presets_tab()
-        self.tab_widget.addTab(self.tab_presets, "🎨 Presets")
+        self.tab_widget.addTab(self.tab_presets, "📁 Presets")
 
-        # Tab 6: Network Thresholds & Locations (Preserved Original Functionality)
+        # 7. Network Thresholds Subsection
         self.tab_thresholds = self._build_thresholds_tab()
-        self.tab_widget.addTab(self.tab_thresholds, "⚙ Network Thresholds")
+        self.tab_widget.addTab(self.tab_thresholds, "⚙ Thresholds & Locations")
 
         main_layout.addWidget(self.tab_widget)
 
-    # --- TAB 1: OVERLAY WINDOW SETTINGS ---
+    # --- SUBSECTION 1: GENERAL ---
 
-    def _build_overlay_tab(self) -> QWidget:
+    def _build_general_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(14)
@@ -188,92 +189,152 @@ class SettingsPage(QWidget):
         card = QFrame()
         card.setProperty("class", "ContentCard")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(16, 14, 16, 14)
+        c_layout.setContentsMargins(18, 16, 18, 16)
         c_layout.setSpacing(14)
 
-        title = QLabel("Floating Overlay Display Settings")
-        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
-        c_layout.addWidget(title)
+        # Status Banner
+        self.banner_frame = QFrame()
+        self._update_status_banner()
+        c_layout.addWidget(self.banner_frame)
 
+        # Master Controls Bar
+        ctrl_box = QHBoxLayout()
+        self.btn_start_overlay = QPushButton("▶ Start Overlay")
+        self.btn_start_overlay.setProperty("class", "PrimaryButton")
+        self.btn_start_overlay.clicked.connect(self._on_start_overlay_clicked)
+        ctrl_box.addWidget(self.btn_start_overlay)
+
+        self.btn_stop_overlay = QPushButton("⏹ Stop Overlay")
+        self.btn_stop_overlay.setProperty("class", "SecondaryButton")
+        self.btn_stop_overlay.clicked.connect(self._on_stop_overlay_clicked)
+        ctrl_box.addWidget(self.btn_stop_overlay)
+
+        self.btn_reset_overlay = QPushButton("↺ Reset Overlay Settings")
+        self.btn_reset_overlay.setProperty("class", "SecondaryButton")
+        self.btn_reset_overlay.clicked.connect(self._on_reset_overlay_settings)
+        ctrl_box.addWidget(self.btn_reset_overlay)
+
+        ctrl_box.addStretch()
+        c_layout.addLayout(ctrl_box)
+
+        # Lock Positioning & Update Rate
         grid = QGridLayout()
         grid.setSpacing(12)
 
-        # Master Toggle
-        self.chk_master_overlay = QCheckBox("Enable Statistics Overlay")
-        self.chk_master_overlay.setChecked(self.config.master_enabled)
-        self.chk_master_overlay.toggled.connect(self._on_master_toggle)
-        grid.addWidget(self.chk_master_overlay, 0, 0, 1, 2)
+        self.chk_master_enabled = QCheckBox("Enable Statistics Overlay System")
+        self.chk_master_enabled.setChecked(self.config.master_enabled)
+        self.chk_master_enabled.toggled.connect(self._on_master_enabled_toggled)
+        grid.addWidget(self.chk_master_enabled, 0, 0, 1, 2)
 
-        # Always-on-Top Toggle
-        self.chk_always_top = QCheckBox("Keep Always on Top of Other Windows")
-        self.chk_always_top.setChecked(self.config.always_on_top)
-        self.chk_always_top.toggled.connect(self._on_overlay_settings_changed)
-        grid.addWidget(self.chk_always_top, 0, 2, 1, 2)
+        self.chk_master_lock = QCheckBox("Lock All Widget Positions (Prevent accidental drags)")
+        self.chk_master_lock.setChecked(self.config.master_locked)
+        self.chk_master_lock.toggled.connect(self._on_master_lock_toggled)
+        grid.addWidget(self.chk_master_lock, 0, 2, 1, 2)
 
-        # Lock Window Dragging
-        self.chk_lock_pos = QCheckBox("Lock Overlay Position (Prevent Dragging)")
-        self.chk_lock_pos.setChecked(self.config.locked)
-        self.chk_lock_pos.toggled.connect(self._on_overlay_settings_changed)
-        grid.addWidget(self.chk_lock_pos, 1, 0, 1, 2)
-
-        # Refresh Rate
-        grid.addWidget(QLabel("Update Frequency (ms):"), 1, 2)
+        grid.addWidget(QLabel("Update Frequency:"), 1, 0)
         self.spin_refresh = QSpinBox()
         self.spin_refresh.setRange(300, 5000)
         self.spin_refresh.setSingleStep(250)
         self.spin_refresh.setValue(self.config.refresh_rate_ms)
-        self.spin_refresh.valueChanged.connect(self._on_overlay_settings_changed)
-        grid.addWidget(self.spin_refresh, 1, 3)
-
-        # Opacity Slider
-        grid.addWidget(QLabel("Window Opacity (%):"), 2, 0)
-        op_box = QHBoxLayout()
-        self.slider_opacity = QSlider(Qt.Horizontal)
-        self.slider_opacity.setRange(20, 100)
-        self.slider_opacity.setValue(int(self.config.opacity * 100))
-        self.lbl_opacity_val = QLabel(f"{int(self.config.opacity * 100)}%")
-        self.slider_opacity.valueChanged.connect(self._on_opacity_slider_changed)
-        op_box.addWidget(self.slider_opacity)
-        op_box.addWidget(self.lbl_opacity_val)
-        grid.addLayout(op_box, 2, 1)
-
-        # Reset Overlay Position Button
-        self.btn_reset_pos = QPushButton("📍 Center Overlay on Screen")
-        self.btn_reset_pos.setProperty("class", "SecondaryButton")
-        self.btn_reset_pos.clicked.connect(self._on_reset_overlay_pos)
-        grid.addWidget(self.btn_reset_pos, 2, 2, 1, 2)
+        self.spin_refresh.valueChanged.connect(self._on_refresh_rate_changed)
+        grid.addWidget(self.spin_refresh, 1, 1)
 
         c_layout.addLayout(grid)
+
+        # Quick Widget Visibility Checklist
+        grp_vis = QGroupBox("Quick Widget Visibility Toggles")
+        grp_vis.setStyleSheet("QGroupBox { font-weight: bold; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; margin-top: 10px; padding-top: 14px; }")
+        vis_layout = QGridLayout(grp_vis)
+        vis_layout.setSpacing(10)
+
+        self.vis_checkboxes: Dict[str, QCheckBox] = {}
+        for idx, (stat_id, item) in enumerate(self.config.stats.items()):
+            row = idx // 4
+            col = idx % 4
+            chk = QCheckBox(item.name)
+            chk.setChecked(item.enabled and item.mode != DisplayMode.DONT_SHOW)
+            chk.toggled.connect(lambda checked, s=stat_id: self._on_quick_vis_toggled(s, checked))
+            vis_layout.addWidget(chk, row, col)
+            self.vis_checkboxes[stat_id] = chk
+
+        c_layout.addWidget(grp_vis)
         layout.addWidget(card)
         layout.addStretch()
         return widget
 
-    def _on_master_toggle(self, checked: bool):
+    def _update_status_banner(self):
+        # Clear previous layout if any
+        if self.banner_frame.layout():
+            QWidget().setLayout(self.banner_frame.layout())
+
+        b_layout = QHBoxLayout(self.banner_frame)
+        b_layout.setContentsMargins(12, 10, 12, 10)
+
+        if self.config.master_enabled:
+            self.banner_frame.setStyleSheet("background-color: rgba(52, 211, 153, 0.15); border: 1px solid #34d399; border-radius: 6px;")
+            lbl = QLabel("● Statistics Overlay is ACTIVE — Floating widgets are visible on desktop.")
+            lbl.setStyleSheet("color: #34d399; font-weight: bold; font-size: 13px;")
+        else:
+            self.banner_frame.setStyleSheet("background-color: rgba(148, 163, 184, 0.12); border: 1px solid #475569; border-radius: 6px;")
+            lbl = QLabel("○ Statistics Overlay is DISABLED — No widgets are rendered and telemetry is paused.")
+            lbl.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 13px;")
+
+        b_layout.addWidget(lbl)
+
+    def _on_start_overlay_clicked(self):
+        self.config.master_enabled = True
+        self.chk_master_enabled.setChecked(True)
+        self._update_status_banner()
+        self.config.save()
+        self.overlay_config_changed.emit(self.config)
+
+    def _on_stop_overlay_clicked(self):
+        self.config.master_enabled = False
+        self.chk_master_enabled.setChecked(False)
+        self._update_status_banner()
+        self.config.save()
+        self.overlay_config_changed.emit(self.config)
+
+    def _on_master_enabled_toggled(self, checked: bool):
         self.config.master_enabled = checked
+        self._update_status_banner()
         self.config.save()
         self.overlay_config_changed.emit(self.config)
 
-    def _on_opacity_slider_changed(self, val: int):
-        self.lbl_opacity_val.setText(f"{val}%")
-        self.config.opacity = val / 100.0
+    def _on_master_lock_toggled(self, checked: bool):
+        self.config.master_locked = checked
         self.config.save()
         self.overlay_config_changed.emit(self.config)
 
-    def _on_overlay_settings_changed(self):
-        self.config.always_on_top = self.chk_always_top.isChecked()
-        self.config.locked = self.chk_lock_pos.isChecked()
-        self.config.refresh_rate_ms = self.spin_refresh.value()
+    def _on_refresh_rate_changed(self, val: int):
+        self.config.refresh_rate_ms = val
         self.config.save()
         self.overlay_config_changed.emit(self.config)
 
-    def _on_reset_overlay_pos(self):
-        self.config.window_x = 100
-        self.config.window_y = 100
-        self.config.save()
-        self.overlay_config_changed.emit(self.config)
-        QMessageBox.information(self, "Position Reset", "Overlay position centered at (100, 100).")
+    def _on_quick_vis_toggled(self, stat_id: str, checked: bool):
+        if stat_id in self.config.stats:
+            item = self.config.stats[stat_id]
+            item.enabled = checked
+            if checked and item.mode == DisplayMode.DONT_SHOW:
+                item.mode = DisplayMode.NUMBERS
+            elif not checked:
+                item.mode = DisplayMode.DONT_SHOW
+            self.config.save()
+            self.overlay_config_changed.emit(self.config)
+            self._populate_stats_table()
 
-    # --- TAB 2: STATISTICS CONFIGURATION ---
+    def _on_reset_overlay_settings(self):
+        self.config.apply_preset("Performance")
+        self.config.master_enabled = False
+        self.config.save()
+        self._update_status_banner()
+        self.chk_master_enabled.setChecked(False)
+        self._populate_stats_table()
+        self._populate_positioning_table()
+        self.overlay_config_changed.emit(self.config)
+        QMessageBox.information(self, "Overlay Reset", "Overlay settings restored to standard performance defaults (disabled).")
+
+    # --- SUBSECTION 2: INDIVIDUAL STATISTICS ---
 
     def _build_statistics_tab(self) -> QWidget:
         widget = QWidget()
@@ -285,28 +346,25 @@ class SettingsPage(QWidget):
         c_layout = QVBoxLayout(card)
         c_layout.setContentsMargins(14, 12, 14, 12)
 
-        t_title = QLabel("Individual Statistic Visibility and Display Modes")
+        t_title = QLabel("Individual Statistic Customization")
         t_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
         c_layout.addWidget(t_title)
 
-        desc = QLabel("Configure each metric to Don't Show (hidden), Numbers, or Graph display mode with custom colors.")
+        desc = QLabel("Configure display mode (Don't Show, Numbers, Graph), font size, dimensions, and accent colors for each statistic.")
         desc.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
         c_layout.addWidget(desc)
 
-        # Table of Statistics
         self.table_stats = QTableWidget()
-        self.table_stats.setColumnCount(6)
+        self.table_stats.setColumnCount(7)
         self.table_stats.setHorizontalHeaderLabels([
-            "Statistic Name", "Category", "Display Mode", "Accent Color", "Font Size / History", "Color Action"
+            "Statistic", "Category", "Display Mode", "Font Size", "Width x Height", "Accent Color", "Action"
         ])
         self.table_stats.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table_stats.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.table_stats.setSelectionBehavior(QTableWidget.SelectRows)
         self.table_stats.setAlternatingRowColors(True)
 
         self._populate_stats_table()
         c_layout.addWidget(self.table_stats)
-
         layout.addWidget(card)
         return widget
 
@@ -327,7 +385,7 @@ class SettingsPage(QWidget):
             item_cat.setFlags(item_cat.flags() ^ Qt.ItemIsEditable)
             self.table_stats.setItem(row, 1, item_cat)
 
-            # 2: Display Mode ComboBox
+            # 2: Display Mode
             combo = QComboBox()
             combo.addItem("Don't Show", DisplayMode.DONT_SHOW)
             combo.addItem("Numbers", DisplayMode.NUMBERS)
@@ -335,57 +393,278 @@ class SettingsPage(QWidget):
             idx = combo.findData(item.mode)
             if idx >= 0:
                 combo.setCurrentIndex(idx)
-            combo.currentIndexChanged.connect(lambda _, s=stat_id, c=combo: self._on_stat_mode_table_changed(s, c))
+            combo.currentIndexChanged.connect(lambda _, s=stat_id, c=combo: self._on_stat_mode_changed(s, c))
             self.table_stats.setCellWidget(row, 2, combo)
 
-            # 3: Color preview badge
+            # 3: Font Size SpinBox
+            spin_f = QSpinBox()
+            spin_f.setRange(9, 32)
+            spin_f.setValue(item.font_size)
+            spin_f.valueChanged.connect(lambda v, s=stat_id: self._on_stat_font_changed(s, v))
+            self.table_stats.setCellWidget(row, 3, spin_f)
+
+            # 4: Width x Height
+            dim_str = f"{item.width} x {item.height} px" if item.mode != DisplayMode.GRAPH else f"{item.graph_width} x {item.graph_height} px"
+            item_dim = QTableWidgetItem(dim_str)
+            item_dim.setFlags(item_dim.flags() ^ Qt.ItemIsEditable)
+            self.table_stats.setItem(row, 4, item_dim)
+
+            # 5: Color preview
             lbl_color = QLabel(f" {item.color} ")
             lbl_color.setAlignment(Qt.AlignCenter)
             lbl_color.setStyleSheet(f"background-color: {item.color}; color: #000; font-weight: bold; border-radius: 4px;")
-            self.table_stats.setCellWidget(row, 3, lbl_color)
+            self.table_stats.setCellWidget(row, 5, lbl_color)
 
-            # 4: Size / Detail
-            detail_str = f"Font: {item.font_size}px | Hist: {item.history_len}pts"
-            item_detail = QTableWidgetItem(detail_str)
-            item_detail.setFlags(item_detail.flags() ^ Qt.ItemIsEditable)
-            self.table_stats.setItem(row, 4, item_detail)
-
-            # 5: Color Pick Button
-            btn_pick = QPushButton("Pick Color")
+            # 6: Pick Color Button
+            btn_pick = QPushButton("Color")
             btn_pick.setProperty("class", "SecondaryButton")
-            btn_pick.clicked.connect(lambda _, s=stat_id, l=lbl_color: self._on_table_pick_color(s, l))
-            self.table_stats.setCellWidget(row, 5, btn_pick)
+            btn_pick.clicked.connect(lambda _, s=stat_id, l=lbl_color: self._on_pick_stat_color(s, l))
+            self.table_stats.setCellWidget(row, 6, btn_pick)
 
-    def _on_stat_mode_table_changed(self, stat_id: str, combo: QComboBox):
+    def _on_stat_mode_changed(self, stat_id: str, combo: QComboBox):
         mode = combo.currentData()
         if stat_id in self.config.stats:
-            self.config.stats[stat_id].mode = mode
-            self.config.stats[stat_id].enabled = (mode != DisplayMode.DONT_SHOW)
-            self.layout_editor.canvas.rebuild_cards()
+            item = self.config.stats[stat_id]
+            item.mode = mode
+            item.enabled = (mode != DisplayMode.DONT_SHOW)
+            if stat_id in self.vis_checkboxes:
+                self.vis_checkboxes[stat_id].setChecked(item.enabled)
             self.config.save()
             self.overlay_config_changed.emit(self.config)
 
-    def _on_table_pick_color(self, stat_id: str, lbl_color: QLabel):
+    def _on_stat_font_changed(self, stat_id: str, val: int):
+        if stat_id in self.config.stats:
+            self.config.stats[stat_id].font_size = val
+            self.config.save()
+            self.overlay_config_changed.emit(self.config)
+
+    def _on_pick_stat_color(self, stat_id: str, lbl_color: QLabel):
         if stat_id not in self.config.stats:
             return
         item = self.config.stats[stat_id]
-        c = QColorDialog.getColor(QColor(item.color), self, f"Select Color for {item.name}")
+        c = QColorDialog.getColor(QColor(item.color), self, f"Select Accent Color for {item.name}")
         if c.isValid():
             item.color = c.name()
             lbl_color.setText(f" {item.color} ")
             lbl_color.setStyleSheet(f"background-color: {item.color}; color: #000; font-weight: bold; border-radius: 4px;")
-            self.layout_editor.canvas.rebuild_cards()
             self.config.save()
             self.overlay_config_changed.emit(self.config)
 
-    # --- TAB 3: VISUAL LAYOUT EDITOR SIGNAL ---
+    # --- SUBSECTION 3: POSITIONING ---
 
-    def _on_editor_layout_changed(self, new_config: OverlayConfig):
-        self.config = new_config
+    def _build_positioning_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(10)
+
+        card = QFrame()
+        card.setProperty("class", "ContentCard")
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(14, 12, 14, 12)
+
+        top_bar = QHBoxLayout()
+        title_box = QVBoxLayout()
+        title = QLabel("Independent Desktop Coordinates & Corner Placement")
+        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
+        subtitle = QLabel("Each statistic is an independent window on your screen. Drag widgets directly with mouse, or fine-tune coordinates here.")
+        subtitle.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
+        title_box.addWidget(title)
+        title_box.addWidget(subtitle)
+        top_bar.addLayout(title_box)
+        top_bar.addStretch()
+
+        btn_reset_all_pos = QPushButton("↺ Reset All Widget Positions")
+        btn_reset_all_pos.setProperty("class", "SecondaryButton")
+        btn_reset_all_pos.clicked.connect(self._on_reset_all_positions)
+        top_bar.addWidget(btn_reset_all_pos)
+
+        c_layout.addLayout(top_bar)
+
+        self.table_pos = QTableWidget()
+        self.table_pos.setColumnCount(6)
+        self.table_pos.setHorizontalHeaderLabels([
+            "Statistic", "X Coordinate", "Y Coordinate", "Quick Snap Corner", "Reset Single", "Lock"
+        ])
+        self.table_pos.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table_pos.setAlternatingRowColors(True)
+
+        self._populate_positioning_table()
+        c_layout.addWidget(self.table_pos)
+        layout.addWidget(card)
+        return widget
+
+    def _populate_positioning_table(self):
+        self.table_pos.setRowCount(0)
+        for row, (stat_id, item) in enumerate(self.config.stats.items()):
+            self.table_pos.insertRow(row)
+
+            # 0: Name
+            s_name = QTableWidgetItem(item.name)
+            s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
+            self.table_pos.setItem(row, 0, s_name)
+
+            # 1: X Coordinate
+            spin_x = QSpinBox()
+            spin_x.setRange(0, 3840)
+            spin_x.setValue(item.x)
+            spin_x.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, x=v))
+            self.table_pos.setCellWidget(row, 1, spin_x)
+
+            # 2: Y Coordinate
+            spin_y = QSpinBox()
+            spin_y.setRange(0, 2160)
+            spin_y.setValue(item.y)
+            spin_y.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, y=v))
+            self.table_pos.setCellWidget(row, 2, spin_y)
+
+            # 3: Quick Snap Corner
+            combo_corner = QComboBox()
+            combo_corner.addItem("Snap Corner...", "")
+            combo_corner.addItem("Top-Left", (24, 24))
+            combo_corner.addItem("Top-Right", (1720, 24))
+            combo_corner.addItem("Bottom-Left", (24, 900))
+            combo_corner.addItem("Bottom-Right", (1680, 900))
+            combo_corner.currentIndexChanged.connect(
+                lambda idx, s=stat_id, c=combo_corner, sx=spin_x, sy=spin_y: self._on_snap_corner(s, c, sx, sy)
+            )
+            self.table_pos.setCellWidget(row, 3, combo_corner)
+
+            # 4: Reset single button
+            btn_res = QPushButton("Reset Pos")
+            btn_res.setProperty("class", "SecondaryButton")
+            btn_res.clicked.connect(lambda _, s=stat_id, sx=spin_x, sy=spin_y: self._on_reset_single_pos(s, sx, sy))
+            self.table_pos.setCellWidget(row, 4, btn_res)
+
+            # 5: Lock checkbox
+            chk_lock = QCheckBox("Lock")
+            chk_lock.setChecked(item.is_locked)
+            chk_lock.toggled.connect(lambda chk, s=stat_id: self._on_single_lock_toggled(s, chk))
+            self.table_pos.setCellWidget(row, 5, chk_lock)
+
+    def _on_coord_changed(self, stat_id: str, x: Optional[int] = None, y: Optional[int] = None):
+        if stat_id in self.config.stats:
+            item = self.config.stats[stat_id]
+            if x is not None: item.x = x
+            if y is not None: item.y = y
+            self.config.save()
+            self.overlay_config_changed.emit(self.config)
+
+    def _on_snap_corner(self, stat_id: str, combo: QComboBox, spin_x: QSpinBox, spin_y: QSpinBox):
+        data = combo.currentData()
+        if data and isinstance(data, tuple):
+            nx, ny = data
+            spin_x.setValue(nx)
+            spin_y.setValue(ny)
+            combo.setCurrentIndex(0)
+
+    def _on_reset_single_pos(self, stat_id: str, spin_x: QSpinBox, spin_y: QSpinBox):
+        catalog = get_default_stats_catalog()
+        if stat_id in catalog:
+            def_item = catalog[stat_id]
+            spin_x.setValue(def_item.x)
+            spin_y.setValue(def_item.y)
+
+    def _on_single_lock_toggled(self, stat_id: str, locked: bool):
+        if stat_id in self.config.stats:
+            self.config.stats[stat_id].is_locked = locked
+            self.config.save()
+            self.overlay_config_changed.emit(self.config)
+
+    def _on_reset_all_positions(self):
+        catalog = get_default_stats_catalog()
+        for stat_id, def_item in catalog.items():
+            if stat_id in self.config.stats:
+                self.config.stats[stat_id].x = def_item.x
+                self.config.stats[stat_id].y = def_item.y
+        self.config.save()
+        self._populate_positioning_table()
+        self.overlay_config_changed.emit(self.config)
+        QMessageBox.information(self, "Positions Reset", "All floating widgets returned to default screen corners.")
+
+    # --- SUBSECTION 4: APPEARANCE ---
+
+    def _build_appearance_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(12)
+
+        card = QFrame()
+        card.setProperty("class", "ContentCard")
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(18, 16, 18, 16)
+        c_layout.setSpacing(14)
+
+        t_title = QLabel("Floating Widget Appearance & Transparency")
+        t_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
+        c_layout.addWidget(t_title)
+
+        grid = QGridLayout()
+        grid.setSpacing(14)
+
+        # Transparent Background Master
+        self.chk_transparent = QCheckBox("Genuinely Transparent Background (No heavy boxes or borders)")
+        self.chk_transparent.setChecked(self.config.transparent_bg)
+        self.chk_transparent.toggled.connect(self._on_appearance_changed)
+        grid.addWidget(self.chk_transparent, 0, 0, 1, 2)
+
+        # Subtle background toggle
+        self.chk_subtle_bg = QCheckBox("Enable Optional Subtle Tinted Background for Readability")
+        self.chk_subtle_bg.setChecked(not self.config.transparent_bg)
+        self.chk_subtle_bg.toggled.connect(self._on_subtle_bg_toggled)
+        grid.addWidget(self.chk_subtle_bg, 1, 0, 1, 2)
+
+        # Global Opacity Slider
+        grid.addWidget(QLabel("Widget Master Opacity:"), 2, 0)
+        op_box = QHBoxLayout()
+        self.slider_master_op = QSlider(Qt.Horizontal)
+        self.slider_master_op.setRange(20, 100)
+        self.slider_master_op.setValue(int(self.config.global_opacity * 100))
+        self.lbl_master_op = QLabel(f"{int(self.config.global_opacity * 100)}%")
+        self.slider_master_op.valueChanged.connect(self._on_master_opacity_slider)
+        op_box.addWidget(self.slider_master_op)
+        op_box.addWidget(self.lbl_master_op)
+        grid.addLayout(op_box, 2, 1)
+
+        # Text Drop Shadow Checkbox
+        self.chk_shadow = QCheckBox("High-Contrast Text Drop Shadow (Guarantees legibility on any game/wallpaper)")
+        self.chk_shadow.setChecked(True)
+        self.chk_shadow.toggled.connect(self._on_appearance_changed)
+        grid.addWidget(self.chk_shadow, 3, 0, 1, 2)
+
+        c_layout.addLayout(grid)
+        layout.addWidget(card)
+        layout.addStretch()
+        return widget
+
+    def _on_subtle_bg_toggled(self, checked: bool):
+        self.config.transparent_bg = not checked
+        self.chk_transparent.setChecked(not checked)
+        for item in self.config.stats.values():
+            item.show_subtle_bg = checked
+            item.bg_opacity = 0.35 if checked else 0.0
         self.config.save()
         self.overlay_config_changed.emit(self.config)
 
-    # --- TAB 4: KEYBOARD SHORTCUTS ---
+    def _on_master_opacity_slider(self, val: int):
+        self.lbl_master_op.setText(f"{val}%")
+        self.config.global_opacity = val / 100.0
+        for item in self.config.stats.values():
+            item.opacity = self.config.global_opacity
+        self.config.save()
+        self.overlay_config_changed.emit(self.config)
+
+    def _on_appearance_changed(self):
+        trans = self.chk_transparent.isChecked()
+        self.config.transparent_bg = trans
+        self.chk_subtle_bg.setChecked(not trans)
+        for item in self.config.stats.values():
+            item.show_subtle_bg = not trans
+            item.bg_opacity = 0.35 if not trans else 0.0
+            item.show_shadow = self.chk_shadow.isChecked()
+        self.config.save()
+        self.overlay_config_changed.emit(self.config)
+
+    # --- SUBSECTION 5: SHORTCUTS ---
 
     def _build_shortcuts_tab(self) -> QWidget:
         widget = QWidget()
@@ -400,21 +679,34 @@ class SettingsPage(QWidget):
 
         top_bar = QHBoxLayout()
         title_box = QVBoxLayout()
-        title = QLabel("Individual Metric Keyboard Shortcut Configuration")
+        title = QLabel("Global Keyboard Shortcuts (All Unassigned by Default)")
         title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
-        subtitle = QLabel("Press a shortcut key anytime to toggle that statistic on/off while preserving its display mode.\n(Notice: All shortcuts are unassigned by default).")
-        subtitle.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px;")
+        subtitle = QLabel("Bind global hotkeys to toggle individual widgets or the entire overlay system from any game or application.")
+        subtitle.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
         top_bar.addLayout(title_box)
         top_bar.addStretch()
 
-        self.btn_reset_shortcuts = QPushButton("↺ Unassign All Shortcuts")
-        self.btn_reset_shortcuts.setProperty("class", "SecondaryButton")
-        self.btn_reset_shortcuts.clicked.connect(self._on_reset_all_shortcuts)
-        top_bar.addWidget(self.btn_reset_shortcuts)
+        self.btn_unassign_all = QPushButton("↺ Unassign All Shortcuts")
+        self.btn_unassign_all.setProperty("class", "SecondaryButton")
+        self.btn_unassign_all.clicked.connect(self._on_unassign_all_shortcuts)
+        top_bar.addWidget(self.btn_unassign_all)
 
         c_layout.addLayout(top_bar)
+
+        # Master Shortcut Bar
+        m_bar = QHBoxLayout()
+        m_bar.addWidget(QLabel("Master Toggle (Enable/Disable All):"))
+        self.btn_master_rec = KeyRecorderButton(self.config.master_shortcut)
+        self.btn_master_rec.shortcut_recorded.connect(self._on_master_shortcut_recorded)
+        m_bar.addWidget(self.btn_master_rec)
+        btn_clear_m = QPushButton("Clear")
+        btn_clear_m.setProperty("class", "SecondaryButton")
+        btn_clear_m.clicked.connect(self._on_clear_master_shortcut)
+        m_bar.addWidget(btn_clear_m)
+        m_bar.addStretch()
+        c_layout.addLayout(m_bar)
 
         # Shortcuts Table
         self.table_shortcuts = QTableWidget()
@@ -423,12 +715,10 @@ class SettingsPage(QWidget):
             "Statistic", "Assigned Shortcut", "Bind Key Action", "Clear"
         ])
         self.table_shortcuts.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table_shortcuts.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.table_shortcuts.setAlternatingRowColors(True)
 
         self._populate_shortcuts_table()
         c_layout.addWidget(self.table_shortcuts)
-
         layout.addWidget(card)
         return widget
 
@@ -438,12 +728,12 @@ class SettingsPage(QWidget):
             self.table_shortcuts.insertRow(row)
 
             # 0: Name
-            s_name = QTableWidgetItem(f"{item.name} ({item.category.capitalize()})")
+            s_name = QTableWidgetItem(item.name)
             s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
             self.table_shortcuts.setItem(row, 0, s_name)
 
             # 1: Current shortcut display badge
-            sc_text = item.shortcut if item.shortcut else "Unassigned"
+            sc_text = item.shortcut if item.shortcut else "(Unassigned)"
             lbl_badge = QLabel(sc_text)
             lbl_badge.setAlignment(Qt.AlignCenter)
             color_style = "color: #38bdf8; font-weight: bold;" if item.shortcut else "color: #64748b;"
@@ -465,23 +755,40 @@ class SettingsPage(QWidget):
             )
             self.table_shortcuts.setCellWidget(row, 3, btn_clear)
 
+    def _on_master_shortcut_recorded(self, shortcut_str: str):
+        shortcut_str = shortcut_str.strip()
+        # Conflict check against metric shortcuts
+        for s_id, item in self.config.stats.items():
+            if item.shortcut.strip().upper() == shortcut_str.upper():
+                QMessageBox.warning(self, "Conflict", f"Shortcut '{shortcut_str}' is already assigned to {item.name}.")
+                self.btn_master_rec.setText(self.config.master_shortcut or "(None)")
+                return
+        self.config.master_shortcut = shortcut_str
+        self.config.save()
+        self.shortcut_updated.emit("master", shortcut_str)
+
+    def _on_clear_master_shortcut(self):
+        self.config.master_shortcut = ""
+        self.btn_master_rec.setText("(None)")
+        self.config.save()
+        self.shortcut_updated.emit("master", "")
+
     def _on_shortcut_recorded(self, stat_id: str, shortcut_str: str, lbl_badge: QLabel):
-        # Conflict Detection Check
         shortcut_str = shortcut_str.strip()
         if shortcut_str:
+            if self.config.master_shortcut.strip().upper() == shortcut_str.upper():
+                QMessageBox.warning(self, "Conflict", f"Shortcut '{shortcut_str}' is already assigned to Master Overlay Toggle.")
+                self._populate_shortcuts_table()
+                return
             for other_id, other_item in self.config.stats.items():
                 if other_id != stat_id and other_item.shortcut.strip().upper() == shortcut_str.upper():
-                    QMessageBox.warning(
-                        self,
-                        "Shortcut Conflict Detected",
-                        f"The shortcut '{shortcut_str}' is already assigned to '{other_item.name}'.\nPlease select a different key combination."
-                    )
+                    QMessageBox.warning(self, "Conflict", f"Shortcut '{shortcut_str}' is already assigned to {other_item.name}.")
                     self._populate_shortcuts_table()
                     return
 
         if stat_id in self.config.stats:
             self.config.stats[stat_id].shortcut = shortcut_str
-            lbl_badge.setText(shortcut_str if shortcut_str else "Unassigned")
+            lbl_badge.setText(shortcut_str if shortcut_str else "(Unassigned)")
             lbl_badge.setStyleSheet("color: #38bdf8; font-weight: bold; background-color: #1e293b; padding: 4px 8px; border-radius: 4px;")
             self.config.save()
             self.shortcut_updated.emit(stat_id, shortcut_str)
@@ -490,22 +797,23 @@ class SettingsPage(QWidget):
         if stat_id in self.config.stats:
             self.config.stats[stat_id].shortcut = ""
             btn_rec.setText("(None)")
-            btn_rec.current_key = ""
-            lbl_badge.setText("Unassigned")
+            lbl_badge.setText("(Unassigned)")
             lbl_badge.setStyleSheet("color: #64748b; background-color: #1e293b; padding: 4px 8px; border-radius: 4px;")
             self.config.save()
             self.shortcut_updated.emit(stat_id, "")
 
-    def _on_reset_all_shortcuts(self):
-        for item in self.config.stats.values():
+    def _on_unassign_all_shortcuts(self):
+        self.config.master_shortcut = ""
+        self.btn_master_rec.setText("(None)")
+        self.shortcut_updated.emit("master", "")
+        for stat_id, item in self.config.stats.items():
             item.shortcut = ""
+            self.shortcut_updated.emit(stat_id, "")
         self.config.save()
         self._populate_shortcuts_table()
-        for stat_id in self.config.stats.keys():
-            self.shortcut_updated.emit(stat_id, "")
-        QMessageBox.information(self, "Shortcuts Reset", "All overlay shortcuts have been reset to Unassigned.")
+        QMessageBox.information(self, "Shortcuts Unassigned", "All keyboard shortcuts have been unassigned.")
 
-    # --- TAB 5: PRESETS MANAGER ---
+    # --- SUBSECTION 6: PRESETS ---
 
     def _build_presets_tab(self) -> QWidget:
         widget = QWidget()
@@ -518,22 +826,15 @@ class SettingsPage(QWidget):
         c_layout.setContentsMargins(16, 14, 16, 14)
         c_layout.setSpacing(12)
 
-        p_title = QLabel("Overlay Layout Presets Management")
+        p_title = QLabel("Multi-Window Overlay Layout Presets")
         p_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
         c_layout.addWidget(p_title)
 
-        p_desc = QLabel("Quickly apply curated layouts or save your customized layout as a preset.")
-        p_desc.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
-        c_layout.addWidget(p_desc)
-
         h_box = QHBoxLayout()
-
-        # Presets List
         self.list_presets = QListWidget()
         self._refresh_presets_list()
         h_box.addWidget(self.list_presets)
 
-        # Actions Column
         actions_box = QVBoxLayout()
         actions_box.setSpacing(8)
 
@@ -554,15 +855,15 @@ class SettingsPage(QWidget):
 
         actions_box.addSpacing(16)
 
-        self.btn_export_presets = QPushButton("📤 Export to JSON...")
-        self.btn_export_presets.setProperty("class", "SecondaryButton")
-        self.btn_export_presets.clicked.connect(self._on_export_presets_json)
-        actions_box.addWidget(self.btn_export_presets)
+        btn_exp = QPushButton("📤 Export to JSON...")
+        btn_exp.setProperty("class", "SecondaryButton")
+        btn_exp.clicked.connect(self._on_export_presets_json)
+        actions_box.addWidget(btn_exp)
 
-        self.btn_import_presets = QPushButton("📥 Import from JSON...")
-        self.btn_import_presets.setProperty("class", "SecondaryButton")
-        self.btn_import_presets.clicked.connect(self._on_import_presets_json)
-        actions_box.addWidget(self.btn_import_presets)
+        btn_imp = QPushButton("📥 Import from JSON...")
+        btn_imp.setProperty("class", "SecondaryButton")
+        btn_imp.clicked.connect(self._on_import_presets_json)
+        actions_box.addWidget(btn_imp)
 
         actions_box.addStretch()
         h_box.addLayout(actions_box)
@@ -573,49 +874,41 @@ class SettingsPage(QWidget):
 
     def _refresh_presets_list(self):
         self.list_presets.clear()
-        builtins = ["Minimal", "Performance", "Detailed"]
-        for p in builtins:
+        for p in ["Minimal", "Performance", "Detailed"]:
             self.list_presets.addItem(f"★ {p} (Built-in)")
         for cp in self.config.custom_presets.keys():
             self.list_presets.addItem(f"👤 {cp} (Custom)")
 
     def _on_apply_preset(self):
         sel = self.list_presets.currentItem()
-        if not sel:
-            return
-        name = sel.text().split(" ")[1]  # Extract clean name
+        if not sel: return
+        name = sel.text().split(" ")[1]
         self.config.apply_preset(name)
         self.config.save()
-        self.layout_editor.spin_win_w.setValue(self.config.window_width)
-        self.layout_editor.spin_win_h.setValue(self.config.window_height)
-        self.layout_editor.canvas.rebuild_cards()
         self._populate_stats_table()
+        self._populate_positioning_table()
         self.overlay_config_changed.emit(self.config)
-        QMessageBox.information(self, "Preset Applied", f"Preset '{name}' has been successfully applied.")
+        QMessageBox.information(self, "Preset Applied", f"Preset '{name}' applied successfully.")
 
     def _on_save_custom_preset(self):
         name, ok = QInputDialog.getText(self, "Save Custom Preset", "Enter a unique preset name:")
         if ok and name.strip():
-            clean_name = name.strip()
-            self.config.save_custom_preset(clean_name)
+            clean = name.strip()
+            self.config.save_custom_preset(clean)
             self._refresh_presets_list()
-            QMessageBox.information(self, "Preset Saved", f"Custom preset '{clean_name}' saved.")
+            QMessageBox.information(self, "Preset Saved", f"Preset '{clean}' saved.")
 
     def _on_delete_custom_preset(self):
         sel = self.list_presets.currentItem()
-        if not sel:
+        if not sel or "Built-in" in sel.text():
             return
-        raw = sel.text()
-        if "Built-in" in raw:
-            QMessageBox.warning(self, "Cannot Delete", "Built-in presets cannot be deleted.")
-            return
-        name = raw.split(" ")[1]
+        name = sel.text().split(" ")[1]
         if self.config.delete_custom_preset(name):
             self._refresh_presets_list()
-            QMessageBox.information(self, "Deleted", f"Custom preset '{name}' removed.")
+            QMessageBox.information(self, "Deleted", f"Preset '{name}' removed.")
 
     def _on_export_presets_json(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Export Overlay Configuration", "netvision_overlay_presets.json", "JSON Files (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, "Export Overlay Configuration", "netvision_overlay_config.json", "JSON Files (*.json)")
         if path:
             try:
                 with open(path, "w", encoding="utf-8") as f:
@@ -634,14 +927,14 @@ class SettingsPage(QWidget):
                 self.config.save()
                 self._refresh_presets_list()
                 self._populate_stats_table()
+                self._populate_positioning_table()
                 self._populate_shortcuts_table()
-                self.layout_editor.canvas.rebuild_cards()
                 self.overlay_config_changed.emit(self.config)
                 QMessageBox.information(self, "Import Successful", "Overlay configuration imported successfully.")
             except Exception as e:
-                QMessageBox.critical(self, "Import Error", f"Failed to import configuration: {e}")
+                QMessageBox.critical(self, "Import Error", f"Failed to import: {e}")
 
-    # --- TAB 6: NETWORK THRESHOLDS & LOCATIONS (PRESERVED FUNCTIONALITY) ---
+    # --- SUBSECTION 7: NETWORK THRESHOLDS & LOCATIONS ---
 
     def _build_thresholds_tab(self) -> QWidget:
         widget = QWidget()
@@ -795,7 +1088,6 @@ class SettingsPage(QWidget):
         return widget
 
     def set_locations(self, locations: List[str]):
-        """Populates existing locations list."""
         self.list_locations.clear()
         for loc in locations:
             self.list_locations.addItem(loc)
@@ -808,7 +1100,6 @@ class SettingsPage(QWidget):
         self.request_add_location.emit(name)
 
     def load_settings(self, settings_dict: Dict[str, Any]):
-        """Populates network threshold UI controls with saved settings."""
         if not settings_dict:
             return
 
@@ -846,7 +1137,6 @@ class SettingsPage(QWidget):
                 pass
 
     def _on_restore_clicked(self):
-        """Restores default values across thresholds and overlay."""
         self.spin_s_exc.setValue(DEFAULT_THRESHOLDS["signal"]["excellent"])
         self.spin_s_good.setValue(DEFAULT_THRESHOLDS["signal"]["good"])
         self.spin_s_fair.setValue(DEFAULT_THRESHOLDS["signal"]["fair"])
@@ -865,63 +1155,43 @@ class SettingsPage(QWidget):
         self.input_default_target.setText("8.8.8.8")
         self.spin_interval.setValue(2)
 
-        self.config.apply_preset("Detailed")
+        self.config.apply_preset("Performance")
+        self.config.master_enabled = False
         self.config.save()
         self._populate_stats_table()
+        self._populate_positioning_table()
         self._populate_shortcuts_table()
-        self.layout_editor.canvas.rebuild_cards()
         self.overlay_config_changed.emit(self.config)
 
         self.request_restore_defaults.emit()
         QMessageBox.information(self, "Defaults Restored", "System thresholds and overlay settings restored to defaults.")
 
     def _on_save_all_clicked(self):
-        """Validates threshold orderings, saves overlay config and network thresholds."""
-        # 1. Validate Signal Threshold Ordering (excellent > good > fair)
         s_exc = self.spin_s_exc.value()
         s_good = self.spin_s_good.value()
         s_fair = self.spin_s_fair.value()
         if not (s_exc > s_good > s_fair):
-            QMessageBox.warning(
-                self,
-                "Invalid Threshold Ordering",
-                f"Wi-Fi Signal thresholds must satisfy: Excellent ({s_exc}%) > Good ({s_good}%) > Fair ({s_fair}%)."
-            )
+            QMessageBox.warning(self, "Invalid Ordering", "Wi-Fi Signal: Excellent > Good > Fair.")
             return
 
-        # 2. Validate Latency Threshold Ordering (excellent < good < fair)
         l_exc = self.spin_l_exc.value()
         l_good = self.spin_l_good.value()
         l_fair = self.spin_l_fair.value()
         if not (l_exc < l_good < l_fair):
-            QMessageBox.warning(
-                self,
-                "Invalid Threshold Ordering",
-                f"Latency thresholds must satisfy: Excellent ({l_exc} ms) < Good ({l_good} ms) < Fair ({l_fair} ms)."
-            )
+            QMessageBox.warning(self, "Invalid Ordering", "Latency: Excellent < Good < Fair.")
             return
 
-        # 3. Validate Packet Loss Ordering (good < fair)
         p_good = self.spin_p_good.value()
         p_fair = self.spin_p_fair.value()
         if not (p_good < p_fair):
-            QMessageBox.warning(
-                self,
-                "Invalid Threshold Ordering",
-                f"Packet loss thresholds must satisfy: Good ({p_good}%) < Fair ({p_fair}%)."
-            )
+            QMessageBox.warning(self, "Invalid Ordering", "Packet Loss: Good < Fair.")
             return
 
-        # 4. Validate Download Speed Ordering (excellent > good > fair)
         d_exc = self.spin_d_exc.value()
         d_good = self.spin_d_good.value()
         d_fair = self.spin_d_fair.value()
         if not (d_exc > d_good > d_fair):
-            QMessageBox.warning(
-                self,
-                "Invalid Threshold Ordering",
-                f"Download speed thresholds must satisfy: Excellent ({d_exc} Mbps) > Good ({d_good} Mbps) > Fair ({d_fair} Mbps)."
-            )
+            QMessageBox.warning(self, "Invalid Ordering", "Download Speed: Excellent > Good > Fair.")
             return
 
         target_host = self.input_default_target.text().strip() or "8.8.8.8"
@@ -940,10 +1210,7 @@ class SettingsPage(QWidget):
             "sampling_interval_sec": str(interval)
         }
 
-        # Save Overlay Config
         self.config.save()
         self.overlay_config_changed.emit(self.config)
-
-        # Emit Network Settings
         self.request_save_settings.emit(payload)
-        QMessageBox.information(self, "Settings Saved", "All overlay, shortcut, preset, and network threshold settings saved successfully.")
+        QMessageBox.information(self, "Settings Saved", "All overlay, shortcut, and network threshold settings saved successfully.")

@@ -1,11 +1,11 @@
 """
 NetVision - Statistics Overlay UI Package
-Provides real-time floating overlay window, sparkline graph widgets,
-and interactive visual drag-and-resize layout editor.
+Provides independent floating statistic windows, mini sparkline graphs,
+and multi-window overlay management.
 """
 
 from netvision.ui.overlay.mini_graph import MiniGraphWidget
-from netvision.ui.overlay.overlay_window import StatisticsOverlayWindow
-from netvision.ui.overlay.layout_editor import OverlayLayoutEditor
+from netvision.ui.overlay.floating_widget import FloatingStatWidget
+from netvision.ui.overlay.overlay_manager import OverlayManager
 
-__all__ = ["MiniGraphWidget", "StatisticsOverlayWindow", "OverlayLayoutEditor"]
+__all__ = ["MiniGraphWidget", "FloatingStatWidget", "OverlayManager"]

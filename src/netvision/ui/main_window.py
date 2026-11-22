@@ -30,7 +30,7 @@ from netvision.core.workers import (
 from netvision.core.overlay_config import OverlayConfig
 from netvision.core.stats_collector import StatisticsCollector
 from netvision.core.shortcut_manager import GlobalShortcutManager
-from netvision.ui.overlay.overlay_window import StatisticsOverlayWindow
+from netvision.ui.overlay.overlay_manager import OverlayManager
 
 # Import Pages
 from netvision.ui.pages.dashboard_page import DashboardPage
@@ -69,14 +69,14 @@ class MainWindow(QMainWindow):
         self._latest_conn_info: Optional[ConnectedInterfaceInfo] = None
         self._closing: bool = False
 
-        # Load overlay configuration and initialize real-time collector & window
+        # Load overlay configuration and initialize real-time collector & multi-window manager
         self.overlay_config = OverlayConfig.load()
         self.stats_collector = StatisticsCollector(
             ping_target="8.8.8.8",
             sample_interval_ms=self.overlay_config.refresh_rate_ms,
             parent=self
         )
-        self.overlay_window = StatisticsOverlayWindow(self.overlay_config)
+        self.overlay_manager = OverlayManager(self.overlay_config, self.stats_collector, parent=self)
         self.shortcut_manager = GlobalShortcutManager(self)
 
         # Active workers tracking for safe lifecycle and clean shutdown
@@ -93,10 +93,9 @@ class MainWindow(QMainWindow):
         self._refresh_locations_across_pages()
         self._register_all_configured_shortcuts()
 
-        # Start non-blocking real-time statistics collector
-        self.stats_collector.start()
+        # Overlay is disabled by default; only start if explicitly enabled in saved config
         if self.overlay_config.master_enabled:
-            self.overlay_window.show()
+            self.overlay_manager.start_overlay()
 
         # Load persisted settings from database
         persisted_settings = self.db.get_all_settings()
@@ -282,26 +281,12 @@ class MainWindow(QMainWindow):
         self.page_settings.overlay_config_changed.connect(self._on_overlay_config_changed)
         self.page_settings.shortcut_updated.connect(self._on_stat_shortcut_updated)
 
-        # Real-time Overlay & Shortcuts
-        self.stats_collector.stats_updated.connect(self._on_overlay_stats_updated)
-        self.overlay_window.request_open_settings.connect(lambda: self.switch_page(10))
+        # Global Hotkey Trigger Dispatcher
         self.shortcut_manager.shortcut_triggered.connect(self._on_stat_shortcut_triggered)
-
-    def _on_overlay_stats_updated(self, snapshot: dict):
-        if self.overlay_window.isVisible():
-            self.overlay_window.update_metrics(snapshot)
-            self.stats_collector.record_frame_tick()
-        if self.stack.currentIndex() == 10:
-            self.page_settings.layout_editor.update_telemetry(snapshot)
 
     def _on_overlay_config_changed(self, config: OverlayConfig):
         self.overlay_config = config
-        self.overlay_window.apply_config(config)
-        if config.master_enabled and not self.overlay_window.isVisible():
-            self.overlay_window.show()
-        elif not config.master_enabled and self.overlay_window.isVisible():
-            self.overlay_window.hide()
-        self.stats_collector.set_interval(config.refresh_rate_ms)
+        self.overlay_manager.apply_config(config)
 
     def _on_stat_shortcut_updated(self, stat_id: str, shortcut_str: str):
         if shortcut_str:
@@ -310,11 +295,18 @@ class MainWindow(QMainWindow):
             self.shortcut_manager.unregister_shortcut(stat_id)
 
     def _on_stat_shortcut_triggered(self, stat_id: str):
-        self.overlay_window.toggle_stat_visibility(stat_id)
-        if self.stack.currentIndex() == 10:
-            self.page_settings.layout_editor.canvas.rebuild_cards()
+        if stat_id == "master":
+            self.overlay_manager.toggle_overlay()
+            self.page_settings.chk_master_enabled.setChecked(self.overlay_config.master_enabled)
+        else:
+            self.overlay_manager.toggle_stat_visibility(stat_id)
+            if stat_id in self.page_settings.vis_checkboxes:
+                is_vis = self.overlay_config.stats[stat_id].enabled
+                self.page_settings.vis_checkboxes[stat_id].setChecked(is_vis)
 
     def _register_all_configured_shortcuts(self):
+        if self.overlay_config.master_shortcut:
+            self.shortcut_manager.register_shortcut("master", self.overlay_config.master_shortcut)
         for stat_id, item in self.overlay_config.stats.items():
             if item.shortcut:
                 self.shortcut_manager.register_shortcut(stat_id, item.shortcut)
@@ -720,11 +712,11 @@ class MainWindow(QMainWindow):
 
         # Shutdown overlay and telemetry services
         if hasattr(self, "stats_collector") and self.stats_collector:
-            self.stats_collector.stop()
+            self.stats_collector.clean_up()
         if hasattr(self, "shortcut_manager") and self.shortcut_manager:
             self.shortcut_manager.clean_up()
-        if hasattr(self, "overlay_window") and self.overlay_window:
-            self.overlay_window.close()
+        if hasattr(self, "overlay_manager") and self.overlay_manager:
+            self.overlay_manager.close_all()
 
         self.stop_signal_monitoring()
         self.stop_speed_test()

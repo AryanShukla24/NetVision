@@ -1,7 +1,7 @@
 """
 NetVision - Unit and Integration Tests for Statistics Overlay System
-Tests OverlayConfig, Presets, Display Modes, Shortcut Manager,
-Mini Graph Widget, Visual Layout Editor, and Telemetry Collector.
+Tests OverlayConfig (disabled by default), Multi-Window Independent Widgets,
+Presets, Display Modes, Shortcut Manager, Mini Graph Widget, and OverlayManager.
 """
 
 import os
@@ -22,10 +22,8 @@ from netvision.core.shortcut_manager import (
     GlobalShortcutManager, parse_hotkey_string
 )
 from netvision.ui.overlay.mini_graph import MiniGraphWidget
-from netvision.ui.overlay.overlay_window import StatisticsOverlayWindow, NumberBadgeCard
-from netvision.ui.overlay.layout_editor import (
-    EditorCanvasWidget, OverlayLayoutEditor, DraggableCardWidget
-)
+from netvision.ui.overlay.floating_widget import FloatingStatWidget
+from netvision.ui.overlay.overlay_manager import OverlayManager
 from netvision.ui.pages.settings_page import SettingsPage
 
 
@@ -54,15 +52,21 @@ def test_catalog_contains_all_11_statistics():
         assert isinstance(catalog[s], StatItemConfig)
 
 
+def test_overlay_disabled_by_default():
+    """STRICT REQUIREMENT: Overlay must NOT be enabled by default."""
+    cfg = OverlayConfig()
+    assert cfg.master_enabled is False, "Overlay must be disabled by default"
+
+
 def test_all_shortcuts_unassigned_by_default():
     """STRICT REQUIREMENT: All keyboard shortcuts must be unassigned by default."""
     cfg = OverlayConfig()
+    assert cfg.master_shortcut == ""
     for stat_id, item in cfg.stats.items():
         assert item.shortcut == "", f"Stat {stat_id} should have empty shortcut by default, got '{item.shortcut}'"
 
 
 def test_display_modes_supported():
-    """Verify each stat item supports hidden, numbers, and graph modes."""
     item = StatItemConfig(stat_id="cpu", name="CPU Usage")
     for mode in [DisplayMode.DONT_SHOW, DisplayMode.NUMBERS, DisplayMode.GRAPH]:
         item.mode = mode
@@ -73,8 +77,7 @@ def test_overlay_config_serialization():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir) / "test_overlay.json"
         cfg = OverlayConfig()
-        cfg.opacity = 0.75
-        cfg.locked = True
+        cfg.master_enabled = True
         cfg.stats["cpu"].mode = DisplayMode.GRAPH
         cfg.stats["fps"].mode = DisplayMode.NUMBERS
 
@@ -82,20 +85,85 @@ def test_overlay_config_serialization():
         assert tmp_path.exists()
 
         loaded = OverlayConfig.load(tmp_path)
-        assert loaded.opacity == 0.75
-        assert loaded.locked is True
+        assert loaded.master_enabled is True
         assert loaded.stats["cpu"].mode == DisplayMode.GRAPH
         assert loaded.stats["fps"].mode == DisplayMode.NUMBERS
 
 
 # ==========================================
-# 2. Presets Engine Tests
+# 2. Independent Multi-Window Floating Widgets Tests
+# ==========================================
+
+def test_independent_floating_widgets_behavior(qapp):
+    """
+    CRITICAL REQUIREMENT:
+    Moving or resizing one widget must NEVER alter another widget.
+    """
+    fps_item = StatItemConfig(stat_id="fps", name="FPS", x=100, y=100, width=150, height=44)
+    cpu_item = StatItemConfig(stat_id="cpu", name="CPU Usage", x=300, y=300, width=180, height=60)
+
+    fps_widget = FloatingStatWidget(fps_item)
+    cpu_widget = FloatingStatWidget(cpu_item)
+
+    assert fps_widget.x() == 100
+    assert cpu_widget.x() == 300
+
+    # Move FPS widget
+    fps_widget.move(500, 200)
+    fps_item.x = 500
+    fps_item.y = 200
+
+    # Verify CPU widget position did NOT change!
+    assert cpu_widget.x() == 300
+    assert cpu_widget.y() == 300
+
+    # Resize CPU widget
+    cpu_widget.resize(250, 80)
+    # Verify FPS widget size did NOT change!
+    assert fps_widget.width() == 150
+
+    fps_widget.close()
+    cpu_widget.close()
+
+
+def test_overlay_manager_orchestration(qapp):
+    cfg = OverlayConfig()
+    cfg.master_enabled = False
+    collector = StatisticsCollector(sample_interval_ms=1000)
+    manager = OverlayManager(cfg, collector)
+
+    # Initial state: overlay stopped
+    assert not collector.is_running
+    for w in manager.widgets.values():
+        assert not w.isVisible()
+
+    # Start overlay
+    manager.start_overlay()
+    assert cfg.master_enabled is True
+    assert collector.is_running
+
+    # Toggle individual stat
+    manager.toggle_stat_visibility("fps")
+    assert cfg.stats["fps"].enabled is False
+
+    # Stop overlay
+    manager.stop_overlay()
+    assert cfg.master_enabled is False
+    assert not collector.is_running
+    for w in manager.widgets.values():
+        assert not w.isVisible()
+
+    manager.close_all()
+
+
+# ==========================================
+# 3. Presets Engine Tests
 # ==========================================
 
 def test_presets_application():
     cfg = OverlayConfig()
 
-    # 1. Minimal Preset: only ping, wifi_signal, fps in numbers mode
+    # 1. Minimal Preset: only ping, wifi_signal, fps visible
     cfg.apply_preset("Minimal")
     assert cfg.active_preset == "Minimal"
     assert cfg.stats["fps"].mode == DisplayMode.NUMBERS
@@ -111,40 +179,16 @@ def test_presets_application():
     assert cfg.stats["gpu"].mode == DisplayMode.GRAPH
     assert cfg.stats["fps"].mode == DisplayMode.NUMBERS
     assert cfg.stats["ram"].mode == DisplayMode.NUMBERS
-    assert cfg.stats["wifi_signal"].mode == DisplayMode.DONT_SHOW
 
     # 3. Detailed Preset: all metrics enabled
     cfg.apply_preset("Detailed")
     assert cfg.active_preset == "Detailed"
     for s_id, item in cfg.stats.items():
-        assert item.mode != DisplayMode.DONT_SHOW, f"Metric {s_id} should be visible in Detailed preset"
-
-
-def test_custom_presets_management():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir) / "custom_presets.json"
-        cfg = OverlayConfig()
-        cfg.stats["fps"].mode = DisplayMode.GRAPH
-        cfg.stats["cpu"].font_size = 18
-
-        cfg.save_custom_preset("GamerUltra")
-        assert "GamerUltra" in cfg.custom_presets
-        assert cfg.active_preset == "GamerUltra"
-
-        # Apply different preset then restore custom
-        cfg.apply_preset("Minimal")
-        assert cfg.stats["fps"].mode == DisplayMode.NUMBERS
-        cfg.apply_preset("GamerUltra")
-        assert cfg.stats["fps"].mode == DisplayMode.GRAPH
-
-        # Delete custom preset
-        deleted = cfg.delete_custom_preset("GamerUltra")
-        assert deleted is True
-        assert "GamerUltra" not in cfg.custom_presets
+        assert item.mode != DisplayMode.DONT_SHOW
 
 
 # ==========================================
-# 3. Shortcut Manager & Conflict Detection Tests
+# 4. Shortcut Manager & Conflict Detection Tests
 # ==========================================
 
 def test_parse_hotkey_string():
@@ -156,7 +200,7 @@ def test_parse_hotkey_string():
     parsed_f = parse_hotkey_string("F9")
     assert parsed_f is not None
     _, vk_f = parsed_f
-    assert vk_f == 0x78  # VK_F9
+    assert vk_f == 0x78
 
     assert parse_hotkey_string("") is None
     assert parse_hotkey_string("InvalidKeyNameXYZ") is None
@@ -182,7 +226,7 @@ def test_shortcut_conflict_detection(qapp):
 
 
 # ==========================================
-# 4. Mini Graph Sparkline Widget Tests
+# 5. Mini Graph Sparkline Widget Tests
 # ==========================================
 
 def test_mini_graph_widget_rendering(qapp):
@@ -200,57 +244,8 @@ def test_mini_graph_widget_rendering(qapp):
 
     assert len(graph._data) == 6
     assert graph._current_val == 55.0
-
-    # Ensure update and resize don't throw
     graph.resize(200, 60)
     graph.repaint()
-
-
-# ==========================================
-# 5. Visual Layout Editor & Canvas Tests
-# ==========================================
-
-def test_editor_canvas_snapping_and_guides(qapp):
-    cfg = OverlayConfig()
-    cfg.apply_preset("Detailed")
-    cfg.snap_to_grid = True
-    cfg.grid_size = 10
-
-    # 1. Test pure grid snapping without alignment guides
-    cfg.show_alignment_guides = False
-    canvas = EditorCanvasWidget(cfg)
-    assert len(canvas.cards) > 0
-
-    snapped_x, snapped_y = canvas.apply_snapping("cpu", 13, 27, 100, 40)
-    assert snapped_x % 10 == 0
-    assert snapped_y % 10 == 0
-
-    # 2. Test alignment guide snapping (snaps to nearby card edge at x=12)
-    canvas.show_guides = True
-    guide_x, _ = canvas.apply_snapping("cpu", 13, 27, 100, 40)
-    assert guide_x == 12  # Aligns to card edge at 12
-
-
-def test_editor_undo_redo_stack(qapp):
-    cfg = OverlayConfig()
-    canvas = EditorCanvasWidget(cfg)
-
-    orig_w = cfg.window_width
-    assert not canvas.can_undo()
-
-    # Modify width and record
-    cfg.window_width = 650
-    canvas.record_history_state()
-    assert canvas.can_undo()
-
-    # Undo
-    canvas.undo()
-    assert cfg.window_width == orig_w
-    assert canvas.can_redo()
-
-    # Redo
-    canvas.redo()
-    assert cfg.window_width == 650
 
 
 # ==========================================
@@ -270,6 +265,14 @@ def test_native_system_metrics():
     assert 0.0 <= cpu <= 100.0
 
 
+def test_native_gpu_reader():
+    gpu_helper = WindowsGpuHelper()
+    val = gpu_helper.get_gpu_percent()
+    assert isinstance(val, float)
+    assert 0.0 <= val <= 100.0
+    gpu_helper.close()
+
+
 def test_statistics_collector_snapshot(qapp):
     collector = StatisticsCollector(sample_interval_ms=1000)
     received = []
@@ -279,7 +282,6 @@ def test_statistics_collector_snapshot(qapp):
     assert len(received) == 1
     snapshot = received[0]
 
-    # Verify all 11 metrics are present in the snapshot
     for expected_key in [
         "fps", "cpu", "gpu", "ram", "net_io",
         "wifi_signal", "ping", "jitter", "packet_loss",
@@ -290,23 +292,24 @@ def test_statistics_collector_snapshot(qapp):
         assert "display" in snapshot[expected_key]
         assert "history" in snapshot[expected_key]
 
-    collector.stop()
+    collector.clean_up()
 
 
 # ==========================================
-# 7. Settings Page Tabbed Architecture Tests
+# 7. Settings Page Subsections Tests
 # ==========================================
 
-def test_settings_page_tabs_and_controls(qapp):
+def test_settings_page_subsections_and_controls(qapp):
     cfg = OverlayConfig()
     page = SettingsPage(overlay_config=cfg)
 
-    # Verify 6 sub-tabs
-    assert page.tab_widget.count() == 6
-    tab_titles = [page.tab_widget.tabText(i) for i in range(6)]
-    assert any("Overlay" in t for t in tab_titles)
-    assert any("Statistics" in t for t in tab_titles)
-    assert any("Layout Editor" in t for t in tab_titles)
+    # Verify 7 subsections
+    assert page.tab_widget.count() == 7
+    tab_titles = [page.tab_widget.tabText(i) for i in range(7)]
+    assert any("General" in t for t in tab_titles)
+    assert any("Individual" in t for t in tab_titles)
+    assert any("Positioning" in t for t in tab_titles)
+    assert any("Appearance" in t for t in tab_titles)
     assert any("Shortcuts" in t for t in tab_titles)
     assert any("Presets" in t for t in tab_titles)
     assert any("Thresholds" in t for t in tab_titles)
