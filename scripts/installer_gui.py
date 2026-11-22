@@ -28,7 +28,7 @@ APP_NAME = "NetVision"
 APP_DISPLAY_NAME = "NetVision – Smart Network Quality & Wi-Fi Coverage Analyzer"
 APP_VERSION = "2.0.0"
 PUBLISHER = "NetVision Team"
-ESTIMATED_SIZE_MB = 198
+ESTIMATED_SIZE_MB = 210
 
 
 def get_default_install_dir() -> Path:
@@ -410,7 +410,10 @@ class NetVisionInstallerWizard(QWizard):
         self.setWizardStyle(QWizard.ModernStyle)
         
         # Set app icon if available
-        icon_path = Path(__file__).resolve().parent.parent / "assets" / "icons" / "netvision.ico"
+        base_dir = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
+        icon_path = base_dir / "assets" / "icons" / "netvision.ico"
+        if not icon_path.exists():
+            icon_path = base_dir / "netvision.ico"
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 

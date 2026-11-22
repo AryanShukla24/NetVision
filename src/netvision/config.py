@@ -36,6 +36,11 @@ TEMPLATE_DB_PATH = DEV_DATA_DIR / "netvision.db"
 
 # User-writable Runtime Data Directory (%LOCALAPPDATA%\NetVision)
 def get_user_data_dir() -> Path:
+    # Optional isolated portable mode: if portable.dat exists in EXE_DIR, store data alongside executable
+    if getattr(sys, "frozen", False):
+        portable_flag = EXE_DIR / "portable.dat"
+        if portable_flag.exists():
+            return EXE_DIR / "user_data"
     base = os.getenv("LOCALAPPDATA")
     if not base:
         base = os.path.expanduser("~")

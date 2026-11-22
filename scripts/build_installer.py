@@ -13,16 +13,27 @@ import shutil
 import zipfile
 import subprocess
 import time
+import hashlib
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
 INSTALLER_DIR = ROOT_DIR / "installer"
+RELEASES_DIR = ROOT_DIR / "Releases"
 SCRIPTS_DIR = ROOT_DIR / "scripts"
 ASSETS_DIR = ROOT_DIR / "assets"
 ICON_PATH = ASSETS_DIR / "icons" / "netvision.ico"
 VERSION_INFO = SCRIPTS_DIR / "windows_version_info.txt"
+
+
+def sha256_file(path: Path) -> str:
+    """Calculates SHA-256 hash of a file."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def step(msg: str):
@@ -64,6 +75,9 @@ def main():
         f"--icon={ICON_PATH}",
         f"--workpath={uninst_work}",
         f"--distpath={uninst_dist}",
+        "--hidden-import=PySide6.QtCore",
+        "--hidden-import=PySide6.QtGui",
+        "--hidden-import=PySide6.QtWidgets",
         str(uninst_script)
     ]
     run_cmd(cmd_uninst)
@@ -115,6 +129,9 @@ def main():
         f"--add-data={ICON_PATH};assets/icons",
         f"--workpath={installer_work}",
         f"--distpath={INSTALLER_DIR}",
+        "--hidden-import=PySide6.QtCore",
+        "--hidden-import=PySide6.QtGui",
+        "--hidden-import=PySide6.QtWidgets",
         str(installer_script)
     ]
     run_cmd(cmd_installer)
@@ -124,12 +141,70 @@ def main():
         raise RuntimeError("NetVision_Setup.exe build failed!")
 
     setup_size_mb = final_setup.stat().st_size / (1024 * 1024)
+
+    # -------------------------------------------------------------
+    # Step 4: Package Releases/ deliverables
+    # -------------------------------------------------------------
+    step("Packaging Releases deliverables")
+    RELEASES_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 4a. Copy installer to Releases/NetVision-Setup.exe
+    releases_setup = RELEASES_DIR / "NetVision-Setup.exe"
+    shutil.copy2(final_setup, releases_setup)
+    print(f"Copied installer to: {releases_setup} ({releases_setup.stat().st_size / (1024*1024):.1f} MB)")
+
+    # 4b. Create Releases/NetVision-Portable.zip
+    step("Creating Releases/NetVision-Portable.zip")
+    portable_zip_path = RELEASES_DIR / "NetVision-Portable.zip"
+    if portable_zip_path.exists():
+        portable_zip_path.unlink()
+
+    # Create optional launcher batch script in app_onedir
+    launcher_bat = app_onedir / "Launch NetVision.bat"
+    launcher_bat.write_text('@echo off\r\nstart "" "%~dp0NetVision.exe"\r\n', encoding="utf-8")
+
+    readme_release = RELEASES_DIR / "README.txt"
+
+    with zipfile.ZipFile(portable_zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        # Include README.txt inside the root folder
+        if readme_release.exists():
+            zf.write(readme_release, "NetVision-Portable/README.txt")
+
+        for root, dirs, files in os.walk(app_onedir):
+            for file in files:
+                # Do not include installer-only uninstaller in portable package
+                if file.lower() == "uninstall.exe":
+                    continue
+                file_path = Path(root) / file
+                rel_path = file_path.relative_to(app_onedir)
+                arcname = Path("NetVision-Portable") / rel_path
+                zf.write(file_path, arcname)
+
+    # Clean temporary launcher batch from dist folder
+    if launcher_bat.exists():
+        launcher_bat.unlink()
+
+    portable_size_mb = portable_zip_path.stat().st_size / (1024 * 1024)
+    print(f"Created portable zip: {portable_zip_path} ({portable_size_mb:.1f} MB)")
+
     elapsed = time.time() - start_time
 
-    step("BUILD COMPLETED SUCCESSFULLY")
-    print(f"Installer built at: {final_setup}")
-    print(f"Size: {setup_size_mb:.1f} MB")
-    print(f"Total time elapsed: {elapsed:.1f}s")
+    # -------------------------------------------------------------
+    # Step 5: Verification and Checksums
+    # -------------------------------------------------------------
+    step("DISTRIBUTION PACKAGING COMPLETED SUCCESSFULLY")
+    print(f"Total time elapsed: {elapsed:.1f}s\n")
+    print("Release Deliverables Summary:")
+    print("-" * 80)
+    for p in (releases_setup, portable_zip_path, readme_release):
+        if p.exists():
+            size_mb = p.stat().st_size / (1024 * 1024)
+            sha = sha256_file(p)
+            print(f"File   : {p.name}")
+            print(f"Path   : {p}")
+            print(f"Size   : {size_mb:.2f} MB ({p.stat().st_size:,} bytes)")
+            print(f"SHA-256: {sha}")
+            print("-" * 80)
 
 
 if __name__ == "__main__":

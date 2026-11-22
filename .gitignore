@@ -28,6 +28,8 @@ dist/
 installer/*.zip
 installer/*.exe
 *.exe
+Releases/*.zip
+Releases/*.exe
 *.egg-info/
 *.egg
 

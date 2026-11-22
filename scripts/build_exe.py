@@ -100,6 +100,8 @@ def build_onedir():
         "--hidden-import=PySide6.QtCore",
         "--hidden-import=PySide6.QtGui",
         "--hidden-import=PySide6.QtWidgets",
+        "--hidden-import=PySide6.QtSvg",
+        "--hidden-import=psutil",
         "--hidden-import=matplotlib.backends.backend_qtagg",
         "--hidden-import=reportlab",
         "--hidden-import=reportlab.platypus",
@@ -150,6 +152,8 @@ def build_onefile():
         "--hidden-import=PySide6.QtCore",
         "--hidden-import=PySide6.QtGui",
         "--hidden-import=PySide6.QtWidgets",
+        "--hidden-import=PySide6.QtSvg",
+        "--hidden-import=psutil",
         "--hidden-import=matplotlib.backends.backend_qtagg",
         "--hidden-import=reportlab",
         "--hidden-import=reportlab.platypus",
@@ -178,9 +182,13 @@ def build_onefile():
 
 if __name__ == "__main__":
     generate_version_file()
-    onedir_exe = build_onedir()
-    # Also build onefile portable
-    try:
-        onefile_exe = build_onefile()
-    except Exception as e:
-        print(f"[WARNING] Onefile build encountered error: {e}")
+    if "--onefile" in sys.argv:
+        build_onefile()
+    elif "--all" in sys.argv:
+        onedir_exe = build_onedir()
+        try:
+            onefile_exe = build_onefile()
+        except Exception as e:
+            print(f"[WARNING] Onefile build encountered error: {e}")
+    else:
+        onedir_exe = build_onedir()
