@@ -1,7 +1,7 @@
 """
 NetVision - High-Performance QPainter Sparkline Mini Graph Widget
 Renders real-time telemetry graphs with anti-aliasing, gradient area fill,
-and zero Matplotlib overhead. Optimized for sub-millisecond redraws.
+and genuine transparency (no forced opaque blue rectangular boxes).
 """
 
 from typing import List, Optional
@@ -15,6 +15,7 @@ from PySide6.QtGui import (
 class MiniGraphWidget(QWidget):
     """
     Ultra-lightweight real-time sparkline graph drawn using native QPainter.
+    Supports genuine transparent backgrounds for seamless desktop/game HUD overlays.
     """
 
     def __init__(
@@ -26,6 +27,7 @@ class MiniGraphWidget(QWidget):
         min_val: float = 0.0,
         max_val: float = 100.0,
         history_len: int = 60,
+        transparent_bg: bool = True,
         parent=None
     ):
         super().__init__(parent)
@@ -36,13 +38,16 @@ class MiniGraphWidget(QWidget):
         self.fixed_min = min_val
         self.fixed_max = max_val
         self.history_len = history_len
+        self.transparent_bg = transparent_bg
 
         self._data: List[float] = []
         self._current_val: float = 0.0
         self._display_override: Optional[str] = None
 
-        self.setAttribute(Qt.WA_OpaquePaintEvent, False)
-        self.setMinimumSize(120, 50)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setStyleSheet("background: transparent; border: none;")
+        self.setMinimumSize(100, 40)
 
     def set_data(self, history: List[float], current_val: Optional[float] = None, display_str: Optional[str] = None):
         """Updates graph data points and requests a repaint."""
@@ -64,6 +69,10 @@ class MiniGraphWidget(QWidget):
         self.fixed_max = max_val
         self.update()
 
+    def set_transparent_bg(self, transparent: bool):
+        self.transparent_bg = transparent
+        self.update()
+
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
@@ -72,29 +81,32 @@ class MiniGraphWidget(QWidget):
         w = self.width()
         h = self.height()
 
-        # Background container
-        bg_color = QColor(15, 23, 42, 210)  # Slate 900 with high opacity
-        painter.fillRect(0, 0, w, h, bg_color)
-
-        # Border
-        border_pen = QPen(QColor(51, 65, 85, 180), 1)  # Slate 700
-        painter.setPen(border_pen)
-        painter.drawRoundedRect(0, 0, w - 1, h - 1, 6, 6)
+        # Only draw background if transparent_bg is explicitly disabled
+        if not self.transparent_bg:
+            bg_color = QColor(15, 23, 42, 210)
+            painter.fillRect(0, 0, w, h, bg_color)
+            border_pen = QPen(QColor(51, 65, 85, 180), 1)
+            painter.setPen(border_pen)
+            painter.drawRoundedRect(0, 0, w - 1, h - 1, 6, 6)
 
         # Header: Title on left, Value on right
         font_title = QFont("Segoe UI", 9, QFont.Bold)
         painter.setFont(font_title)
-        painter.setPen(QColor(226, 232, 240))  # Slate 200
+
+        # Text Drop Shadow for 100% legibility on transparent backgrounds
+        if self.transparent_bg:
+            painter.setPen(QColor(0, 0, 0, 200))
+            painter.drawText(9, 17, self.title)
+
+        painter.setPen(QColor(226, 232, 240))
         painter.drawText(8, 16, self.title)
 
         font_val = QFont("Segoe UI", 9, QFont.Bold)
         painter.setFont(font_val)
-        accent = QColor(self.color_hex)
-        painter.setPen(accent)
 
         if self._display_override:
             val_text = self._display_override
-        elif self.unit == "%" or self.unit == "FPS":
+        elif self.unit in ("%", "FPS"):
             val_text = f"{self._current_val:.1f} {self.unit}"
         elif self.unit == "ms":
             val_text = f"{self._current_val:.1f} ms"
@@ -103,20 +115,27 @@ class MiniGraphWidget(QWidget):
         else:
             val_text = f"{self._current_val:.1f} {self.unit}".strip()
 
-        painter.drawText(w - painter.fontMetrics().horizontalAdvance(val_text) - 8, 16, val_text)
+        val_x = w - painter.fontMetrics().horizontalAdvance(val_text) - 6
+        if self.transparent_bg:
+            painter.setPen(QColor(0, 0, 0, 200))
+            painter.drawText(val_x + 1, 17, val_text)
+
+        accent = QColor(self.color_hex)
+        painter.setPen(accent)
+        painter.drawText(val_x, 16, val_text)
 
         # Graph plot area dimensions
-        pad_x = 8
-        top_y = 22
-        bot_y = h - 6
+        pad_x = 4
+        top_y = 20
+        bot_y = h - 4
         plot_w = w - (pad_x * 2)
         plot_h = bot_y - top_y
 
         if plot_h <= 5 or plot_w <= 10:
             return
 
-        # Grid lines (mid line)
-        grid_pen = QPen(QColor(51, 65, 85, 90), 1, Qt.DashLine)
+        # Subtle Guideline
+        grid_pen = QPen(QColor(148, 163, 184, 50), 1, Qt.DashLine)
         painter.setPen(grid_pen)
         mid_y = top_y + (plot_h / 2.0)
         painter.drawLine(pad_x, int(mid_y), w - pad_x, int(mid_y))
@@ -124,14 +143,13 @@ class MiniGraphWidget(QWidget):
         if not self._data or len(self._data) < 2:
             return
 
-        # Determine min and max scale
+        # Determine scale min and max
         if self.scale_mode == "fixed":
             min_y = self.fixed_min
             max_y = self.fixed_max
         else:
             min_y = min(self._data)
             max_y = max(self._data)
-            # Add small padding so flat lines don't clamp
             diff = max_y - min_y
             if diff < 1.0:
                 min_y = max(0.0, min_y - 1.0)
@@ -139,7 +157,7 @@ class MiniGraphWidget(QWidget):
 
         range_y = max(0.001, max_y - min_y)
 
-        # Build coordinate points
+        # Coordinate calculation
         pts: List[QPointF] = []
         n_pts = len(self._data)
         step_x = plot_w / max(1, n_pts - 1)
@@ -151,12 +169,12 @@ class MiniGraphWidget(QWidget):
             py = bot_y - (norm * plot_h)
             pts.append(QPointF(px, py))
 
-        # 1. Draw gradient area underneath line
+        # 1. Gradient Fill under sparkline
         grad = QLinearGradient(0, top_y, 0, bot_y)
         c_top = QColor(self.color_hex)
-        c_top.setAlpha(70)
+        c_top.setAlpha(60)
         c_bot = QColor(self.color_hex)
-        c_bot.setAlpha(8)
+        c_bot.setAlpha(5)
         grad.setColorAt(0.0, c_top)
         grad.setColorAt(1.0, c_bot)
 
@@ -165,7 +183,7 @@ class MiniGraphWidget(QWidget):
         painter.setBrush(QBrush(grad))
         painter.drawPolygon(poly_pts)
 
-        # 2. Draw sparkline
+        # 2. Draw Anti-Aliased Sparkline
         line_pen = QPen(accent, 1.8)
         line_pen.setCapStyle(Qt.RoundCap)
         line_pen.setJoinStyle(Qt.RoundJoin)
@@ -175,7 +193,7 @@ class MiniGraphWidget(QWidget):
         for i in range(len(pts) - 1):
             painter.drawLine(pts[i], pts[i + 1])
 
-        # 3. Draw active point at head
+        # 3. Head indicator dot
         last_pt = pts[-1]
         painter.setPen(QPen(QColor(255, 255, 255), 1.5))
         painter.setBrush(accent)

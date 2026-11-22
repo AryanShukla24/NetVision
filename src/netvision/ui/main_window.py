@@ -280,6 +280,7 @@ class MainWindow(QMainWindow):
         self.page_settings.request_restore_defaults.connect(self._restore_app_settings)
         self.page_settings.overlay_config_changed.connect(self._on_overlay_config_changed)
         self.page_settings.shortcut_updated.connect(self._on_stat_shortcut_updated)
+        self.stats_collector.stats_updated.connect(self.page_settings.update_telemetry)
 
         # Global Hotkey Trigger Dispatcher
         self.shortcut_manager.shortcut_triggered.connect(self._on_stat_shortcut_triggered)

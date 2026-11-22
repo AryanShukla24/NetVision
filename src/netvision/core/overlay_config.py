@@ -85,6 +85,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
     """
     Returns the catalog of all 11 supported statistics configured with
     intelligent screen corner placement for multi-window floating mode.
+    Fits seamlessly across 1366x768 laptop screens up to 4K displays.
     """
     return {
         # Top-Right System / Gaming Telemetry
@@ -94,8 +95,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.NUMBERS,
             unit="FPS",
-            x=1720, y=24, width=150, height=44,
-            graph_width=210, graph_height=65,
+            x=1180, y=20, width=150, height=44,
+            graph_width=200, graph_height=60,
             color="#34d399",
             shortcut=""
         ),
@@ -105,8 +106,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="ms",
-            x=1720, y=74, width=150, height=44,
-            graph_width=210, graph_height=65,
+            x=1180, y=68, width=150, height=44,
+            graph_width=200, graph_height=60,
             color="#fbbf24",
             shortcut=""
         ),
@@ -116,8 +117,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="%",
-            x=1720, y=124, width=150, height=44,
-            graph_width=210, graph_height=65,
+            x=1180, y=116, width=150, height=44,
+            graph_width=200, graph_height=60,
             color="#34d399",
             shortcut=""
         ),
@@ -129,8 +130,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.GRAPH,
             unit="%",
-            x=24, y=24, width=190, height=65,
-            graph_width=190, graph_height=65,
+            x=20, y=20, width=190, height=60,
+            graph_width=190, graph_height=60,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
             color="#38bdf8",
             shortcut=""
@@ -141,8 +142,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.GRAPH,
             unit="%",
-            x=24, y=96, width=190, height=65,
-            graph_width=190, graph_height=65,
+            x=20, y=88, width=190, height=60,
+            graph_width=190, graph_height=60,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
             color="#a78bfa",
             shortcut=""
@@ -153,8 +154,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.NUMBERS,
             unit="%",
-            x=24, y=168, width=190, height=44,
-            graph_width=190, graph_height=65,
+            x=20, y=156, width=190, height=44,
+            graph_width=190, graph_height=60,
             color="#f472b6",
             shortcut=""
         ),
@@ -166,8 +167,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="KB/s",
-            x=1670, y=920, width=200, height=44,
-            graph_width=220, graph_height=65,
+            x=1140, y=700, width=190, height=44,
+            graph_width=210, graph_height=60,
             color="#38bdf8",
             shortcut=""
         ),
@@ -177,8 +178,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="Mbps",
-            x=1670, y=870, width=200, height=44,
-            graph_width=220, graph_height=65,
+            x=1140, y=650, width=190, height=44,
+            graph_width=210, graph_height=60,
             color="#60a5fa",
             shortcut=""
         ),
@@ -188,8 +189,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="Mbps",
-            x=1670, y=820, width=200, height=44,
-            graph_width=220, graph_height=65,
+            x=1140, y=600, width=190, height=44,
+            graph_width=210, graph_height=60,
             color="#818cf8",
             shortcut=""
         ),
@@ -201,8 +202,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="ms",
-            x=24, y=920, width=160, height=44,
-            graph_width=200, graph_height=65,
+            x=20, y=700, width=160, height=44,
+            graph_width=190, graph_height=60,
             color="#f97316",
             shortcut=""
         ),
@@ -212,8 +213,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="%",
-            x=24, y=870, width=160, height=44,
-            graph_width=200, graph_height=65,
+            x=20, y=650, width=160, height=44,
+            graph_width=190, graph_height=60,
             color="#f87171",
             shortcut=""
         ),
@@ -222,9 +223,9 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
 
 @dataclass
 class OverlayConfig:
-    # STRICT REQUIREMENT: Overlay is DISABLED by default!
+    # STRICT REQUIREMENT: Overlay is DISABLED by default and LOCKED during normal use!
     master_enabled: bool = False
-    master_locked: bool = False
+    master_locked: bool = True
     master_shortcut: str = ""        # Global hotkey to toggle all widgets (unassigned by default)
     
     # Global Appearance Defaults

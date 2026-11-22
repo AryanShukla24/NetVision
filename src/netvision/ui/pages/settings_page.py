@@ -13,6 +13,7 @@ Features dedicated subsections for:
 from typing import List, Dict, Any, Optional
 import json
 import logging
+import copy
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -20,15 +21,18 @@ from PySide6.QtWidgets import (
     QFrame, QGridLayout, QSpinBox, QDoubleSpinBox, QLineEdit,
     QListWidget, QMessageBox, QComboBox, QTabWidget, QSlider,
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QColorDialog, QFileDialog, QInputDialog, QScrollArea, QGroupBox
+    QColorDialog, QFileDialog, QInputDialog, QScrollArea, QGroupBox,
+    QStackedWidget
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QKeySequence
+from PySide6.QtGui import QColor, QKeySequence, QGuiApplication
 
 from netvision.config import DEFAULT_THRESHOLDS, DEFAULT_PING_TARGETS, COLORS
 from netvision.core.overlay_config import (
     OverlayConfig, DisplayMode, StatItemConfig, get_default_stats_catalog
 )
+from netvision.ui.overlay.stat_detail_dialog import StatDetailDialog
+from netvision.ui.overlay.visual_editor import VisualDesktopEditor
 
 logger = logging.getLogger(__name__)
 
@@ -340,53 +344,127 @@ class SettingsPage(QWidget):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         card = QFrame()
         card.setProperty("class", "ContentCard")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(14, 12, 14, 12)
+        c_layout.setContentsMargins(16, 14, 16, 14)
+        c_layout.setSpacing(12)
 
+        # Header with Title and Search/Filter Controls
+        top_bar = QHBoxLayout()
+        title_box = QVBoxLayout()
         t_title = QLabel("Individual Statistic Customization")
-        t_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
-        c_layout.addWidget(t_title)
-
-        desc = QLabel("Configure display mode (Don't Show, Numbers, Graph), font size, dimensions, and accent colors for each statistic.")
+        t_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {COLORS['primary']};")
+        desc = QLabel("Each metric operates as an independent floating window. Switch display mode directly, or click Configure for deep customization.")
         desc.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
-        c_layout.addWidget(desc)
+        title_box.addWidget(t_title)
+        title_box.addWidget(desc)
+        top_bar.addLayout(title_box)
+        top_bar.addStretch()
 
+        # Search box & category filter
+        self.input_stat_search = QLineEdit()
+        self.input_stat_search.setPlaceholderText("🔍 Search metrics...")
+        self.input_stat_search.setFixedWidth(160)
+        self.input_stat_search.textChanged.connect(self._filter_stat_cards)
+        top_bar.addWidget(self.input_stat_search)
+
+        self.combo_stat_filter = QComboBox()
+        self.combo_stat_filter.addItems(["All Categories", "System", "Performance", "Network"])
+        self.combo_stat_filter.currentIndexChanged.connect(self._filter_stat_cards)
+        top_bar.addWidget(self.combo_stat_filter)
+
+        self.chk_stat_enabled_only = QCheckBox("Active Only")
+        self.chk_stat_enabled_only.toggled.connect(self._filter_stat_cards)
+        top_bar.addWidget(self.chk_stat_enabled_only)
+
+        c_layout.addLayout(top_bar)
+
+        # Scroll Area for Card-Based Statistic Rows
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: 1px solid #1e293b; border-radius: 6px; background-color: #0b111e; }")
+
+        self.stats_cards_container = QWidget()
+        self.stats_cards_container.setStyleSheet("background-color: transparent;")
+        self.stats_cards_layout = QVBoxLayout(self.stats_cards_container)
+        self.stats_cards_layout.setContentsMargins(10, 10, 10, 10)
+        self.stats_cards_layout.setSpacing(8)
+
+        scroll.setWidget(self.stats_cards_container)
+        c_layout.addWidget(scroll)
+
+        # Hidden table for backward compatibility with any direct queries
         self.table_stats = QTableWidget()
-        self.table_stats.setColumnCount(7)
-        self.table_stats.setHorizontalHeaderLabels([
-            "Statistic", "Category", "Display Mode", "Font Size", "Width x Height", "Accent Color", "Action"
-        ])
-        self.table_stats.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table_stats.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.table_stats.setAlternatingRowColors(True)
+        self.table_stats.setVisible(False)
 
         self._populate_stats_table()
-        c_layout.addWidget(self.table_stats)
         layout.addWidget(card)
         return widget
 
     def _populate_stats_table(self):
-        self.table_stats.setRowCount(0)
-        catalog = self.config.stats
+        # Clear previous card widgets
+        while self.stats_cards_layout.count():
+            item = self.stats_cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
-        for row, (stat_id, item) in enumerate(catalog.items()):
-            self.table_stats.insertRow(row)
+        self.stat_card_widgets: Dict[str, QFrame] = {}
 
-            # 0: Name
-            item_name = QTableWidgetItem(item.name)
-            item_name.setFlags(item_name.flags() ^ Qt.ItemIsEditable)
-            self.table_stats.setItem(row, 0, item_name)
+        # Category color theme mapping
+        cat_colors = {
+            "performance": ("#38bdf8", "rgba(56, 189, 248, 0.15)"),
+            "system": ("#a78bfa", "rgba(167, 139, 250, 0.15)"),
+            "network": ("#34d399", "rgba(52, 211, 153, 0.15)")
+        }
 
-            # 1: Category
-            item_cat = QTableWidgetItem(item.category.capitalize())
-            item_cat.setFlags(item_cat.flags() ^ Qt.ItemIsEditable)
-            self.table_stats.setItem(row, 1, item_cat)
+        for stat_id, item in self.config.stats.items():
+            card = QFrame()
+            card.setStyleSheet("""
+                QFrame {
+                    background-color: #111a2e;
+                    border: 1px solid rgba(51, 65, 85, 0.6);
+                    border-radius: 6px;
+                    padding: 4px;
+                }
+                QFrame:hover {
+                    border-color: rgba(56, 189, 248, 0.5);
+                }
+            """)
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(12, 8, 12, 8)
+            card_layout.setSpacing(14)
 
-            # 2: Display Mode
+            # 1. Category Pill
+            cat_fg, cat_bg = cat_colors.get(item.category.lower(), ("#38bdf8", "rgba(56, 189, 248, 0.15)"))
+            lbl_cat = QLabel(item.category.upper())
+            lbl_cat.setFixedWidth(78)
+            lbl_cat.setAlignment(Qt.AlignCenter)
+            lbl_cat.setStyleSheet(f"""
+                background-color: {cat_bg};
+                color: {cat_fg};
+                font-size: 10px;
+                font-weight: 800;
+                padding: 4px 6px;
+                border-radius: 4px;
+                border: 1px solid {cat_fg}40;
+            """)
+            card_layout.addWidget(lbl_cat)
+
+            # 2. Statistic Name & Info
+            name_box = QVBoxLayout()
+            name_box.setSpacing(2)
+            lbl_name = QLabel(item.name)
+            lbl_name.setStyleSheet("font-size: 13px; font-weight: 700; color: #ffffff;")
+            name_box.addWidget(lbl_name)
+
+            card_layout.addLayout(name_box, stretch=2)
+
+            # 3. Display Mode Selector
             combo = QComboBox()
+            combo.setFixedWidth(130)
             combo.addItem("Don't Show", DisplayMode.DONT_SHOW)
             combo.addItem("Numbers", DisplayMode.NUMBERS)
             combo.addItem("Graph", DisplayMode.GRAPH)
@@ -394,32 +472,72 @@ class SettingsPage(QWidget):
             if idx >= 0:
                 combo.setCurrentIndex(idx)
             combo.currentIndexChanged.connect(lambda _, s=stat_id, c=combo: self._on_stat_mode_changed(s, c))
-            self.table_stats.setCellWidget(row, 2, combo)
+            card_layout.addWidget(combo)
 
-            # 3: Font Size SpinBox
-            spin_f = QSpinBox()
-            spin_f.setRange(9, 32)
-            spin_f.setValue(item.font_size)
-            spin_f.valueChanged.connect(lambda v, s=stat_id: self._on_stat_font_changed(s, v))
-            self.table_stats.setCellWidget(row, 3, spin_f)
+            # 4. Font Size & Dimensions Badge
+            dim_str = f"{item.width}×{item.height} px" if item.mode != DisplayMode.GRAPH else f"{item.graph_width}×{item.graph_height} px"
+            lbl_spec = QLabel(f"{item.font_size} pt  |  {dim_str}")
+            lbl_spec.setAlignment(Qt.AlignCenter)
+            lbl_spec.setFixedWidth(130)
+            lbl_spec.setStyleSheet("""
+                background-color: #090e17;
+                color: #94a3b8;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 5px 8px;
+                border-radius: 4px;
+                border: 1px solid #1e293b;
+            """)
+            card_layout.addWidget(lbl_spec)
 
-            # 4: Width x Height
-            dim_str = f"{item.width} x {item.height} px" if item.mode != DisplayMode.GRAPH else f"{item.graph_width} x {item.graph_height} px"
-            item_dim = QTableWidgetItem(dim_str)
-            item_dim.setFlags(item_dim.flags() ^ Qt.ItemIsEditable)
-            self.table_stats.setItem(row, 4, item_dim)
+            # 5. Accent Color Swatch (Clickable to change color)
+            lbl_color = QPushButton(f"  {item.color}  ")
+            lbl_color.setFixedWidth(90)
+            lbl_color.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {item.color};
+                    color: #000000;
+                    font-weight: 800;
+                    font-size: 11px;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 5px;
+                }}
+                QPushButton:hover {{
+                    border: 2px solid #ffffff;
+                }}
+            """)
+            lbl_color.setToolTip("Click to select accent color")
+            lbl_color.clicked.connect(lambda _, s=stat_id: self._on_pick_stat_color_direct(s))
+            card_layout.addWidget(lbl_color)
 
-            # 5: Color preview
-            lbl_color = QLabel(f" {item.color} ")
-            lbl_color.setAlignment(Qt.AlignCenter)
-            lbl_color.setStyleSheet(f"background-color: {item.color}; color: #000; font-weight: bold; border-radius: 4px;")
-            self.table_stats.setCellWidget(row, 5, lbl_color)
+            # 6. Configure Button
+            btn_cfg = QPushButton("⚙ Configure")
+            btn_cfg.setProperty("class", "SecondaryButton")
+            btn_cfg.setFixedWidth(100)
+            btn_cfg.clicked.connect(lambda _, s=stat_id: self._on_open_stat_dialog(s))
+            card_layout.addWidget(btn_cfg)
 
-            # 6: Pick Color Button
-            btn_pick = QPushButton("Color")
-            btn_pick.setProperty("class", "SecondaryButton")
-            btn_pick.clicked.connect(lambda _, s=stat_id, l=lbl_color: self._on_pick_stat_color(s, l))
-            self.table_stats.setCellWidget(row, 6, btn_pick)
+            self.stats_cards_layout.addWidget(card)
+            self.stat_card_widgets[stat_id] = card
+
+        self.stats_cards_layout.addStretch()
+
+    def _filter_stat_cards(self):
+        query = self.input_stat_search.text().strip().lower()
+        cat_filter = self.combo_stat_filter.currentText().lower()
+        active_only = self.chk_stat_enabled_only.isChecked()
+
+        for stat_id, card in self.stat_card_widgets.items():
+            item = self.config.stats.get(stat_id)
+            if not item:
+                continue
+
+            matches_search = (not query) or (query in item.name.lower()) or (query in item.category.lower())
+            matches_cat = (cat_filter == "all categories") or (item.category.lower() == cat_filter)
+            matches_active = (not active_only) or (item.enabled and item.mode != DisplayMode.DONT_SHOW)
+
+            card.setVisible(matches_search and matches_cat and matches_active)
 
     def _on_stat_mode_changed(self, stat_id: str, combo: QComboBox):
         mode = combo.currentData()
@@ -431,6 +549,7 @@ class SettingsPage(QWidget):
                 self.vis_checkboxes[stat_id].setChecked(item.enabled)
             self.config.save()
             self.overlay_config_changed.emit(self.config)
+            self._populate_positioning_table()
 
     def _on_stat_font_changed(self, stat_id: str, val: int):
         if stat_id in self.config.stats:
@@ -439,59 +558,252 @@ class SettingsPage(QWidget):
             self.overlay_config_changed.emit(self.config)
 
     def _on_pick_stat_color(self, stat_id: str, lbl_color: QLabel):
+        self._on_pick_stat_color_direct(stat_id)
+
+    def _on_pick_stat_color_direct(self, stat_id: str):
         if stat_id not in self.config.stats:
             return
         item = self.config.stats[stat_id]
         c = QColorDialog.getColor(QColor(item.color), self, f"Select Accent Color for {item.name}")
         if c.isValid():
             item.color = c.name()
-            lbl_color.setText(f" {item.color} ")
-            lbl_color.setStyleSheet(f"background-color: {item.color}; color: #000; font-weight: bold; border-radius: 4px;")
             self.config.save()
             self.overlay_config_changed.emit(self.config)
+            self._populate_stats_table()
 
-    # --- SUBSECTION 3: POSITIONING ---
+    def _on_open_stat_dialog(self, stat_id: str):
+        if stat_id not in self.config.stats:
+            return
+        item = self.config.stats[stat_id]
+        dlg = StatDetailDialog(item, self)
+        if dlg.exec():
+            self.config.save()
+            self.overlay_config_changed.emit(self.config)
+            self._populate_stats_table()
+            self._populate_positioning_table()
+            if stat_id in self.vis_checkboxes:
+                self.vis_checkboxes[stat_id].setChecked(item.enabled and item.mode != DisplayMode.DONT_SHOW)
+
+    # --- SUBSECTION 3: POSITIONING & VISUAL OVERLAY EDITOR ---
 
     def _build_positioning_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.pos_stack = QStackedWidget()
+
+        # Page 0: Positioning Overview & Launcher Card
+        page_overview = QWidget()
+        o_layout = QVBoxLayout(page_overview)
+        o_layout.setSpacing(12)
+        o_layout.setContentsMargins(14, 12, 14, 12)
 
         card = QFrame()
         card.setProperty("class", "ContentCard")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(14, 12, 14, 12)
+        c_layout.setContentsMargins(18, 16, 18, 16)
+        c_layout.setSpacing(14)
 
-        top_bar = QHBoxLayout()
-        title_box = QVBoxLayout()
-        title = QLabel("Independent Desktop Coordinates & Corner Placement")
-        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
-        subtitle = QLabel("Each statistic is an independent window on your screen. Drag widgets directly with mouse, or fine-tune coordinates here.")
+        # Title & Description
+        t_box = QVBoxLayout()
+        title = QLabel("Independent Desktop Coordinates & Visual Layout")
+        title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {COLORS['primary']};")
+        subtitle = QLabel("Every statistic is an independent floating transparent window. Drag, resize, and align widgets visually inside the Visual Overlay Editor.")
         subtitle.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
-        title_box.addWidget(title)
-        title_box.addWidget(subtitle)
-        top_bar.addLayout(title_box)
-        top_bar.addStretch()
+        t_box.addWidget(title)
+        t_box.addWidget(subtitle)
+        c_layout.addLayout(t_box)
 
-        btn_reset_all_pos = QPushButton("↺ Reset All Widget Positions")
+        # Screen & Status Information Banner
+        info_frame = QFrame()
+        info_frame.setStyleSheet("background-color: #090e17; border: 1px solid #1e293b; border-radius: 8px; padding: 10px;")
+        info_layout = QHBoxLayout(info_frame)
+
+        # Detect resolution
+        primary = QGuiApplication.primaryScreen()
+        res_str = f"{primary.size().width()} × {primary.size().height()} px" if primary else "1366 × 768 px"
+
+        lbl_res = QLabel(f"🖥 Primary Display: {res_str}")
+        lbl_res.setStyleSheet("font-weight: 700; color: #38bdf8; font-size: 12px;")
+        info_layout.addWidget(lbl_res)
+
+        info_layout.addSpacing(20)
+        lbl_lock = QLabel("🔒 Desktop Widgets: Locked (Safe during games/apps)")
+        lbl_lock.setStyleSheet("font-weight: 600; color: #34d399; font-size: 12px;")
+        info_layout.addWidget(lbl_lock)
+
+        info_layout.addStretch()
+        c_layout.addWidget(info_frame)
+
+        # Prominent "Open Visual Overlay Editor" CTA
+        launch_card = QFrame()
+        launch_card.setStyleSheet("""
+            QFrame {
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(2, 132, 199, 0.20), stop:1 rgba(37, 99, 235, 0.10));
+                border: 2px solid #0284c7;
+                border-radius: 8px;
+                padding: 16px;
+            }
+        """)
+        l_layout = QHBoxLayout(launch_card)
+
+        l_text_box = QVBoxLayout()
+        l_title = QLabel("Interactive Visual Overlay Workspace")
+        l_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #ffffff;")
+        l_desc = QLabel("Simulates your actual desktop resolution with live snapping guides, 8-point resize handles, and instant preview.")
+        l_desc.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        l_text_box.addWidget(l_title)
+        l_text_box.addWidget(l_desc)
+        l_layout.addLayout(l_text_box)
+        l_layout.addStretch()
+
+        self.btn_open_visual_editor = QPushButton("📐 Open Visual Overlay Editor")
+        self.btn_open_visual_editor.setStyleSheet("""
+            QPushButton {
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284c7, stop:1 #2563eb);
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: 800;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 22px;
+                min-height: 36px;
+            }
+            QPushButton:hover {
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0ea5e9, stop:1 #3b82f6);
+            }
+        """)
+        self.btn_open_visual_editor.clicked.connect(self._open_visual_editor)
+        l_layout.addWidget(self.btn_open_visual_editor)
+        c_layout.addWidget(launch_card)
+
+        # Quick Layout Preset Buttons Bar
+        quick_bar = QHBoxLayout()
+        lbl_quick = QLabel("Quick Desktop Presets:")
+        lbl_quick.setStyleSheet("font-weight: 700; color: #f8fafc; font-size: 12px;")
+        quick_bar.addWidget(lbl_quick)
+
+        for label, corner in [
+            ("↖ Top-Left", "tl"),
+            ("↗ Top-Right", "tr"),
+            ("⊞ 4-Corners HUD", "hud"),
+            ("↙ Bottom-Left", "bl"),
+            ("↘ Bottom-Right", "br")
+        ]:
+            btn = QPushButton(label)
+            btn.setProperty("class", "SecondaryButton")
+            btn.clicked.connect(lambda _, c=corner: self._align_preset_corner(c))
+            quick_bar.addWidget(btn)
+
+        quick_bar.addStretch()
+
+        btn_reset_all_pos = QPushButton("↺ Reset All Coordinates")
         btn_reset_all_pos.setProperty("class", "SecondaryButton")
         btn_reset_all_pos.clicked.connect(self._on_reset_all_positions)
-        top_bar.addWidget(btn_reset_all_pos)
+        quick_bar.addWidget(btn_reset_all_pos)
+        c_layout.addLayout(quick_bar)
 
-        c_layout.addLayout(top_bar)
-
+        # Coordinates Reference Table
         self.table_pos = QTableWidget()
         self.table_pos.setColumnCount(6)
         self.table_pos.setHorizontalHeaderLabels([
             "Statistic", "X Coordinate", "Y Coordinate", "Quick Snap Corner", "Reset Single", "Lock"
         ])
         self.table_pos.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table_pos.setAlternatingRowColors(True)
+        self.table_pos.setAlternatingRowColors(False)
 
         self._populate_positioning_table()
         c_layout.addWidget(self.table_pos)
-        layout.addWidget(card)
+        o_layout.addWidget(card)
+        self.pos_stack.addWidget(page_overview)
+
+        # Page 1: Embedded Visual Desktop Editor
+        self.visual_editor = VisualDesktopEditor(self.config, self)
+        self.visual_editor.save_and_apply.connect(self._on_visual_editor_saved)
+        self.visual_editor.cancelled.connect(self._on_visual_editor_cancelled)
+        self.pos_stack.addWidget(self.visual_editor)
+
+        layout.addWidget(self.pos_stack)
         return widget
+
+    def _open_visual_editor(self):
+        # Refresh working copy and initialize history
+        self.visual_editor.working_config = copy.deepcopy(self.config)
+        self.visual_editor.original_config = copy.deepcopy(self.config)
+        self.visual_editor.canvas.set_config(self.visual_editor.working_config)
+        self.visual_editor._history = [copy.deepcopy(self.config.to_dict())]
+        self.visual_editor._history_idx = 0
+        self.visual_editor._update_undo_redo_ui()
+        self.pos_stack.setCurrentIndex(1)
+
+    def _on_visual_editor_saved(self, new_config: OverlayConfig):
+        self.config = new_config
+        self.config.save()
+        self.overlay_config_changed.emit(self.config)
+        self._populate_stats_table()
+        self._populate_positioning_table()
+        self.pos_stack.setCurrentIndex(0)
+        QMessageBox.information(self, "Layout Applied", "Visual overlay layout has been saved and applied to your desktop.")
+
+    def _on_visual_editor_cancelled(self):
+        self.pos_stack.setCurrentIndex(0)
+
+    def _align_preset_corner(self, corner: str):
+        primary = QGuiApplication.primaryScreen()
+        screen_w = primary.size().width() if primary else 1366
+        screen_h = primary.size().height() if primary else 768
+
+        enabled_stats = [item for item in self.config.stats.values() if item.mode != DisplayMode.DONT_SHOW]
+        if not enabled_stats:
+            enabled_stats = list(self.config.stats.values())[:4]
+
+        if corner == "tl":
+            cur_y = 24
+            for item in enabled_stats:
+                item.x = 24
+                item.y = cur_y
+                cur_y += (item.graph_height if item.mode == DisplayMode.GRAPH else item.height) + 12
+        elif corner == "tr":
+            cur_y = 24
+            for item in enabled_stats:
+                w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
+                item.x = max(24, screen_w - w - 24)
+                item.y = cur_y
+                cur_y += (item.graph_height if item.mode == DisplayMode.GRAPH else item.height) + 12
+        elif corner == "bl":
+            cur_y = screen_h - 60
+            for item in reversed(enabled_stats):
+                h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
+                item.x = 24
+                item.y = max(24, cur_y - h)
+                cur_y -= (h + 12)
+        elif corner == "br":
+            cur_y = screen_h - 60
+            for item in reversed(enabled_stats):
+                w = item.graph_width if item.mode == DisplayMode.GRAPH else item.width
+                h = item.graph_height if item.mode == DisplayMode.GRAPH else item.height
+                item.x = max(24, screen_w - w - 24)
+                item.y = max(24, cur_y - h)
+                cur_y -= (h + 12)
+        elif corner == "hud":
+            # Distribute among 4 corners
+            corners = [
+                (24, 24),
+                (max(24, screen_w - 220), 24),
+                (24, max(24, screen_h - 80)),
+                (max(24, screen_w - 220), max(24, screen_h - 80))
+            ]
+            for idx, item in enumerate(enabled_stats):
+                cx, cy = corners[idx % 4]
+                item.x = cx
+                item.y = cy
+
+        self.config.save()
+        self.overlay_config_changed.emit(self.config)
+        self._populate_stats_table()
+        self._populate_positioning_table()
 
     def _populate_positioning_table(self):
         self.table_pos.setRowCount(0)
@@ -499,20 +811,20 @@ class SettingsPage(QWidget):
             self.table_pos.insertRow(row)
 
             # 0: Name
-            s_name = QTableWidgetItem(item.name)
+            s_name = QTableWidgetItem(f"{item.name} ({item.mode.capitalize()})")
             s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
             self.table_pos.setItem(row, 0, s_name)
 
             # 1: X Coordinate
             spin_x = QSpinBox()
-            spin_x.setRange(0, 3840)
+            spin_x.setRange(0, 7680)
             spin_x.setValue(item.x)
             spin_x.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, x=v))
             self.table_pos.setCellWidget(row, 1, spin_x)
 
             # 2: Y Coordinate
             spin_y = QSpinBox()
-            spin_y.setRange(0, 2160)
+            spin_y.setRange(0, 4320)
             spin_y.setValue(item.y)
             spin_y.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, y=v))
             self.table_pos.setCellWidget(row, 2, spin_y)
@@ -521,9 +833,9 @@ class SettingsPage(QWidget):
             combo_corner = QComboBox()
             combo_corner.addItem("Snap Corner...", "")
             combo_corner.addItem("Top-Left", (24, 24))
-            combo_corner.addItem("Top-Right", (1720, 24))
-            combo_corner.addItem("Bottom-Left", (24, 900))
-            combo_corner.addItem("Bottom-Right", (1680, 900))
+            combo_corner.addItem("Top-Right", (1180, 24))
+            combo_corner.addItem("Bottom-Left", (24, 700))
+            combo_corner.addItem("Bottom-Right", (1180, 700))
             combo_corner.currentIndexChanged.connect(
                 lambda idx, s=stat_id, c=combo_corner, sx=spin_x, sy=spin_y: self._on_snap_corner(s, c, sx, sy)
             )
@@ -579,7 +891,7 @@ class SettingsPage(QWidget):
         self.config.save()
         self._populate_positioning_table()
         self.overlay_config_changed.emit(self.config)
-        QMessageBox.information(self, "Positions Reset", "All floating widgets returned to default screen corners.")
+        QMessageBox.information(self, "Positions Reset", "All floating widgets returned to default screen positions.")
 
     # --- SUBSECTION 4: APPEARANCE ---
 
@@ -715,12 +1027,17 @@ class SettingsPage(QWidget):
             "Statistic", "Assigned Shortcut", "Bind Key Action", "Clear"
         ])
         self.table_shortcuts.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table_shortcuts.setAlternatingRowColors(True)
+        self.table_shortcuts.setAlternatingRowColors(False)
 
         self._populate_shortcuts_table()
         c_layout.addWidget(self.table_shortcuts)
         layout.addWidget(card)
         return widget
+
+    def update_telemetry(self, snapshot: Dict[str, Any]):
+        """Passes real-time telemetry snapshot to embedded visual editor if active."""
+        if hasattr(self, "visual_editor") and self.visual_editor:
+            self.visual_editor.update_telemetry(snapshot)
 
     def _populate_shortcuts_table(self):
         self.table_shortcuts.setRowCount(0)

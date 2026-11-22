@@ -41,16 +41,38 @@ class ChartWidget(QWidget):
             spine.set_color(COLORS["border"])
 
         if title:
-            self.ax.set_title(title, color=COLORS["text_primary"], fontsize=11, fontweight="bold", pad=8)
+            self.ax.set_title(title, color=COLORS["text_primary"], fontsize=11, fontweight="bold", pad=10)
         if xlabel:
-            self.ax.set_xlabel(xlabel, color=COLORS["text_secondary"], fontsize=9)
+            self.ax.set_xlabel(xlabel, color=COLORS["text_secondary"], fontsize=9, labelpad=6)
         if ylabel:
-            self.ax.set_ylabel(ylabel, color=COLORS["text_secondary"], fontsize=9)
+            self.ax.set_ylabel(ylabel, color=COLORS["text_secondary"], fontsize=9, labelpad=6)
+
+        try:
+            self.figure.subplots_adjust(top=0.88, bottom=0.20, left=0.12, right=0.95)
+        except Exception:
+            pass
 
     def clear(self, title: str = "", xlabel: str = "", ylabel: str = ""):
         """Clears axes and reapplies dark styling."""
         self.ax.clear()
         self._apply_dark_styling(title, xlabel, ylabel)
+
+    def show_empty_message(self, message: str = "No test data available yet", title: str = ""):
+        """Renders a clean empty placeholder state."""
+        self.ax.clear()
+        self._apply_dark_styling(title=title)
+        self.ax.set_xticks([])
+        self.ax.set_yticks([])
+        self.ax.text(
+            0.5, 0.5, message,
+            horizontalalignment="center",
+            verticalalignment="center",
+            transform=self.ax.transAxes,
+            color=COLORS["text_muted"],
+            fontsize=10,
+            fontstyle="italic"
+        )
+        self.canvas.draw()
 
     def plot_line(
         self,
@@ -78,7 +100,10 @@ class ChartWidget(QWidget):
             legend = self.ax.legend(facecolor=COLORS["bg_surface"], edgecolor=COLORS["border"], labelcolor=COLORS["text_primary"], fontsize=9)
             if legend:
                 legend.get_frame().set_alpha(0.8)
-        self.figure.tight_layout()
+        try:
+            self.figure.tight_layout(pad=1.4)
+        except Exception:
+            self.figure.subplots_adjust(top=0.88, bottom=0.20, left=0.12, right=0.95)
         self.canvas.draw()
 
     def plot_scatter(
@@ -107,7 +132,10 @@ class ChartWidget(QWidget):
             legend = self.ax.legend(facecolor=COLORS["bg_surface"], edgecolor=COLORS["border"], labelcolor=COLORS["text_primary"], fontsize=9)
             if legend:
                 legend.get_frame().set_alpha(0.8)
-        self.figure.tight_layout()
+        try:
+            self.figure.tight_layout(pad=1.4)
+        except Exception:
+            self.figure.subplots_adjust(top=0.88, bottom=0.20, left=0.12, right=0.95)
         self.canvas.draw()
 
     def plot_bars(
@@ -123,5 +151,8 @@ class ChartWidget(QWidget):
         self.clear(title=title, xlabel=xlabel, ylabel=ylabel)
         bar_colors = colors or [COLORS["primary"]] * len(categories)
         self.ax.bar(categories, values, color=bar_colors, width=0.55, edgecolor=COLORS["border"])
-        self.figure.tight_layout()
+        try:
+            self.figure.tight_layout(pad=1.4)
+        except Exception:
+            self.figure.subplots_adjust(top=0.88, bottom=0.20, left=0.12, right=0.95)
         self.canvas.draw()
