@@ -27,6 +27,10 @@ from netvision.core.workers import (
     InterfaceRefreshWorker, WifiScanWorker, SpeedTestWorker,
     LatencyTestWorker, SignalMonitorWorker, ExperimentWorker
 )
+from netvision.core.overlay_config import OverlayConfig
+from netvision.core.stats_collector import StatisticsCollector
+from netvision.core.shortcut_manager import GlobalShortcutManager
+from netvision.ui.overlay.overlay_window import StatisticsOverlayWindow
 
 # Import Pages
 from netvision.ui.pages.dashboard_page import DashboardPage
@@ -65,6 +69,16 @@ class MainWindow(QMainWindow):
         self._latest_conn_info: Optional[ConnectedInterfaceInfo] = None
         self._closing: bool = False
 
+        # Load overlay configuration and initialize real-time collector & window
+        self.overlay_config = OverlayConfig.load()
+        self.stats_collector = StatisticsCollector(
+            ping_target="8.8.8.8",
+            sample_interval_ms=self.overlay_config.refresh_rate_ms,
+            parent=self
+        )
+        self.overlay_window = StatisticsOverlayWindow(self.overlay_config)
+        self.shortcut_manager = GlobalShortcutManager(self)
+
         # Active workers tracking for safe lifecycle and clean shutdown
         self.active_refresh_worker: Optional[InterfaceRefreshWorker] = None
         self.active_scan_worker: Optional[WifiScanWorker] = None
@@ -77,6 +91,12 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._wire_signals()
         self._refresh_locations_across_pages()
+        self._register_all_configured_shortcuts()
+
+        # Start non-blocking real-time statistics collector
+        self.stats_collector.start()
+        if self.overlay_config.master_enabled:
+            self.overlay_window.show()
 
         # Load persisted settings from database
         persisted_settings = self.db.get_all_settings()
@@ -163,7 +183,7 @@ class MainWindow(QMainWindow):
         self.page_comparison = ComparisonPage(self)
         self.page_experiment = ExperimentPage(self)
         self.page_reports = ReportsPage(self)
-        self.page_settings = SettingsPage(self)
+        self.page_settings = SettingsPage(overlay_config=self.overlay_config, parent=self)
         self.page_about = AboutPage(self)
 
         self.stack.addWidget(self.page_dashboard)    # 0
@@ -259,6 +279,45 @@ class MainWindow(QMainWindow):
         self.page_settings.request_add_location.connect(self.add_custom_location)
         self.page_settings.request_save_settings.connect(self._save_app_settings)
         self.page_settings.request_restore_defaults.connect(self._restore_app_settings)
+        self.page_settings.overlay_config_changed.connect(self._on_overlay_config_changed)
+        self.page_settings.shortcut_updated.connect(self._on_stat_shortcut_updated)
+
+        # Real-time Overlay & Shortcuts
+        self.stats_collector.stats_updated.connect(self._on_overlay_stats_updated)
+        self.overlay_window.request_open_settings.connect(lambda: self.switch_page(10))
+        self.shortcut_manager.shortcut_triggered.connect(self._on_stat_shortcut_triggered)
+
+    def _on_overlay_stats_updated(self, snapshot: dict):
+        if self.overlay_window.isVisible():
+            self.overlay_window.update_metrics(snapshot)
+            self.stats_collector.record_frame_tick()
+        if self.stack.currentIndex() == 10:
+            self.page_settings.layout_editor.update_telemetry(snapshot)
+
+    def _on_overlay_config_changed(self, config: OverlayConfig):
+        self.overlay_config = config
+        self.overlay_window.apply_config(config)
+        if config.master_enabled and not self.overlay_window.isVisible():
+            self.overlay_window.show()
+        elif not config.master_enabled and self.overlay_window.isVisible():
+            self.overlay_window.hide()
+        self.stats_collector.set_interval(config.refresh_rate_ms)
+
+    def _on_stat_shortcut_updated(self, stat_id: str, shortcut_str: str):
+        if shortcut_str:
+            self.shortcut_manager.register_shortcut(stat_id, shortcut_str)
+        else:
+            self.shortcut_manager.unregister_shortcut(stat_id)
+
+    def _on_stat_shortcut_triggered(self, stat_id: str):
+        self.overlay_window.toggle_stat_visibility(stat_id)
+        if self.stack.currentIndex() == 10:
+            self.page_settings.layout_editor.canvas.rebuild_cards()
+
+    def _register_all_configured_shortcuts(self):
+        for stat_id, item in self.overlay_config.stats.items():
+            if item.shortcut:
+                self.shortcut_manager.register_shortcut(stat_id, item.shortcut)
 
     def _refresh_locations_across_pages(self):
         """Updates location combo boxes across all pages."""
@@ -658,6 +717,14 @@ class MainWindow(QMainWindow):
         """Safely stops timers and terminates all background threads before exit."""
         self._closing = True
         self.page_dashboard.stop_timer()
+
+        # Shutdown overlay and telemetry services
+        if hasattr(self, "stats_collector") and self.stats_collector:
+            self.stats_collector.stop()
+        if hasattr(self, "shortcut_manager") and self.shortcut_manager:
+            self.shortcut_manager.clean_up()
+        if hasattr(self, "overlay_window") and self.overlay_window:
+            self.overlay_window.close()
 
         self.stop_signal_monitoring()
         self.stop_speed_test()

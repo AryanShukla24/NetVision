@@ -58,3 +58,7 @@ def run_hidden_command(
         errors="replace",
         **kwargs,
     )
+
+
+# Alias for backward and cross-module compatibility
+run_subprocess = run_hidden_command
