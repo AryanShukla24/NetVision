@@ -5,7 +5,12 @@ Provides consistent typography, high contrast, non-clipped inputs/dropdowns,
 and eliminates white alternating table rows.
 """
 
+from pathlib import Path
 from netvision.config import COLORS
+
+_ICONS_DIR = Path(__file__).parent.parent / "resources" / "icons"
+CHEVRON_DOWN_PATH = (_ICONS_DIR / "chevron_down.png").as_posix()
+CHEVRON_DOWN_HOVER_PATH = (_ICONS_DIR / "chevron_down_hover.png").as_posix()
 
 DARK_THEME_QSS = f"""
 /* Global Reset and Main Window */
@@ -199,16 +204,20 @@ QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
     border-color: #38bdf8;
 }}
 
-/* Dropdowns with generous height and non-clipped text */
+/* Dropdowns with generous height, clearly visible arrow, and non-clipped text */
 QComboBox {{
     background-color: #090e17;
     color: #f8fafc;
     border: 1px solid #1e293b;
     border-radius: 6px;
-    padding: 5px 28px 5px 10px;
+    padding: 6px 34px 6px 12px;
     font-size: 13px;
-    min-height: 28px;
+    min-height: 30px;
     selection-background-color: #0284c7;
+}}
+
+QComboBox:hover {{
+    border-color: #334155;
 }}
 
 QComboBox:focus {{
@@ -218,10 +227,25 @@ QComboBox:focus {{
 QComboBox::drop-down {{
     subcontrol-origin: padding;
     subcontrol-position: top right;
-    width: 24px;
-    border-left: 1px solid rgba(51, 65, 85, 0.5);
+    width: 28px;
+    border-left: 1px solid rgba(51, 65, 85, 0.4);
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
+    background-color: transparent;
+}}
+
+QComboBox::drop-down:hover {{
+    background-color: rgba(56, 189, 248, 0.12);
+}}
+
+QComboBox::down-arrow {{
+    image: url('{CHEVRON_DOWN_PATH}');
+    width: 12px;
+    height: 12px;
+}}
+
+QComboBox::down-arrow:hover {{
+    image: url('{CHEVRON_DOWN_HOVER_PATH}');
 }}
 
 QComboBox QAbstractItemView {{
@@ -236,8 +260,8 @@ QComboBox QAbstractItemView {{
 }}
 
 QComboBox QAbstractItemView::item {{
-    min-height: 26px;
-    padding: 4px 8px;
+    min-height: 28px;
+    padding: 6px 10px;
     border-radius: 4px;
 }}
 

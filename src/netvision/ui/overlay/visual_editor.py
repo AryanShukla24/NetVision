@@ -7,17 +7,20 @@ properties panel, undo/redo, and isolated edit/preview states.
 
 from typing import Dict, List, Optional, Tuple, Any
 import copy
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QGridLayout, QSpinBox, QComboBox, QCheckBox,
     QSlider, QColorDialog, QSplitter, QScrollArea, QGroupBox,
     QApplication
 )
-from PySide6.QtCore import Qt, QPoint, QRect, Signal, QSize
+from PySide6.QtCore import Qt, QPoint, QRect, Signal, QSize, QTimer
 from PySide6.QtGui import (
     QPainter, QPen, QBrush, QColor, QFont, QMouseEvent,
-    QCursor, QPaintEvent, QGuiApplication
+    QCursor, QPaintEvent, QGuiApplication, QPixmap, QScreen
 )
+
+logger = logging.getLogger(__name__)
 
 from netvision.core.overlay_config import (
     OverlayConfig, StatItemConfig, DisplayMode, get_default_stats_catalog
@@ -70,12 +73,19 @@ class SimulatedDesktopCanvas(QWidget):
         # Latest telemetry snapshot cache for live preview
         self._telemetry_cache: Dict[str, Any] = {}
 
+        # Real desktop background capture pixmap
+        self.desktop_pixmap: Optional[QPixmap] = None
+
         self.setMouseTracking(True)
-        self.setMinimumSize(480, 270)
+        self.setMinimumSize(540, 320)
+
+    def set_desktop_pixmap(self, pixmap: Optional[QPixmap]):
+        self.desktop_pixmap = pixmap
+        self.update()
 
     def set_resolution(self, res_w: int, res_h: int):
-        self.res_w = max(800, res_w)
-        self.res_h = max(600, res_h)
+        self.res_w = max(640, res_w)
+        self.res_h = max(480, res_h)
         self.update()
 
     def set_config(self, config: OverlayConfig):
@@ -85,7 +95,7 @@ class SimulatedDesktopCanvas(QWidget):
     def get_desktop_rect(self) -> QRect:
         """Calculates centered, aspect-ratio-preserved desktop preview bounds."""
         cw, ch = self.width(), self.height()
-        pad = 20
+        pad = 6  # Maximized preview workspace
         avail_w = max(100, cw - (pad * 2))
         avail_h = max(100, ch - (pad * 2))
 
@@ -377,20 +387,36 @@ class SimulatedDesktopCanvas(QWidget):
         # Draw Simulated Desktop Workspace
         dr = self.get_desktop_rect()
 
-        # Desktop wallpaper fill (Modern dark high-tech gradient)
-        painter.fillRect(dr, QColor(15, 23, 42))
+        # Draw Desktop Workspace (Live capture or simulated fallback)
+        dr = self.get_desktop_rect()
 
-        # Desktop Outer Border
-        pen_border = QPen(QColor(56, 189, 248, 140), 1.5)
-        painter.setPen(pen_border)
-        painter.drawRect(dr)
+        if self.desktop_pixmap and not self.desktop_pixmap.isNull():
+            # Actual live desktop capture preview
+            painter.drawPixmap(dr, self.desktop_pixmap)
+            # Subtle glass tint overlay to guarantee widget readability against any background
+            painter.fillRect(dr, QColor(0, 0, 0, 35))
+            pen_border = QPen(QColor(56, 189, 248, 200), 2)
+            painter.setPen(pen_border)
+            painter.drawRect(dr)
 
-        # Resolution watermark in bottom-right corner of desktop
-        font_watermark = QFont("Segoe UI", 9, QFont.Bold)
-        painter.setFont(font_watermark)
-        painter.setPen(QColor(100, 116, 139, 140))
-        wm_text = f"Simulated Display: {self.res_w} x {self.res_h}"
-        painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(wm_text) - 10, dr.bottom() - 10, wm_text)
+            # Live watermark badge
+            font_watermark = QFont("Segoe UI", 9, QFont.Bold)
+            painter.setFont(font_watermark)
+            painter.setPen(QColor(52, 211, 153))
+            wm_text = f"● Live Desktop Preview ({self.res_w} × {self.res_h})"
+            painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(wm_text) - 12, dr.bottom() - 12, wm_text)
+        else:
+            # Fallback high-tech simulated dark grid
+            painter.fillRect(dr, QColor(15, 23, 42))
+            pen_border = QPen(QColor(56, 189, 248, 140), 1.5)
+            painter.setPen(pen_border)
+            painter.drawRect(dr)
+
+            font_watermark = QFont("Segoe UI", 9, QFont.Bold)
+            painter.setFont(font_watermark)
+            painter.setPen(QColor(148, 163, 184))
+            wm_text = f"Simulated Display ({self.res_w} × {self.res_h})"
+            painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(wm_text) - 12, dr.bottom() - 12, wm_text)
 
         # Draw Alignment Guide Lines (Cyan/Red)
         scale_x = dr.width() / self.res_w
@@ -422,45 +448,56 @@ class SimulatedDesktopCanvas(QWidget):
             # 1. Widget Card Background (Transparent or subtle)
             if item.show_subtle_bg:
                 bg_a = int(item.bg_opacity * 255)
-                painter.fillRect(wr, QColor(15, 23, 42, max(40, bg_a)))
-                painter.setPen(QPen(QColor(51, 65, 85, max(50, bg_a)), 1))
+                painter.fillRect(wr, QColor(15, 23, 42, max(50, bg_a)))
+                painter.setPen(QPen(QColor(51, 65, 85, max(60, bg_a)), 1))
                 painter.drawRoundedRect(wr, 4, 4)
             else:
-                # In genuinely transparent mode, render subtle glass box in preview for visibility
-                painter.fillRect(wr, QColor(30, 41, 59, 110))
-                painter.setPen(QPen(QColor(51, 65, 85, 120), 1))
+                # Genuinely transparent mode: render light subtle outline so user sees bounds in preview
+                painter.fillRect(wr, QColor(15, 23, 42, 45))
+                painter.setPen(QPen(QColor(56, 189, 248, 90), 1, Qt.DashLine))
                 painter.drawRoundedRect(wr, 4, 4)
 
             # 2. Widget Content
-            font_title = QFont("Segoe UI", max(7, int(item.font_size * scale_y * 0.75)), QFont.Bold)
+            font_title = QFont("Segoe UI", max(8, int(item.font_size * scale_y * 0.8)), QFont.Bold)
             painter.setFont(font_title)
-            painter.setPen(QColor(203, 213, 225))
-            painter.drawText(wr.left() + 5, wr.top() + int(wr.height() * 0.42), item.name)
+
+            # Drop shadow for readability over live wallpaper
+            if item.show_shadow:
+                painter.setPen(QColor(0, 0, 0, 220))
+                painter.drawText(wr.left() + 7, wr.top() + int(wr.height() * 0.38) + 1, item.name)
+
+            painter.setPen(QColor(241, 245, 249))
+            painter.drawText(wr.left() + 6, wr.top() + int(wr.height() * 0.38), item.name)
 
             # Telemetry Value / Sparkline Preview
             t_data = self._telemetry_cache.get(stat_id, {})
             disp_str = t_data.get("display", "--")
 
             if item.mode == DisplayMode.GRAPH:
-                # Mini sparkline in preview
+                # Sparkline in preview
                 accent = QColor(item.color)
-                painter.setPen(QPen(accent, 1.5))
-                mid = wr.top() + int(wr.height() * 0.7)
-                # Draw stylized mini sparkline line
-                painter.drawLine(wr.left() + 6, mid, wr.left() + int(wr.width() * 0.3), mid - 4)
-                painter.drawLine(wr.left() + int(wr.width() * 0.3), mid - 4, wr.left() + int(wr.width() * 0.6), mid + 3)
-                painter.drawLine(wr.left() + int(wr.width() * 0.6), mid + 3, wr.right() - 6, mid - 2)
+                painter.setPen(QPen(accent, 1.8))
+                mid = wr.top() + int(wr.height() * 0.68)
+                painter.drawLine(wr.left() + 8, mid + 2, wr.left() + int(wr.width() * 0.3), mid - 8)
+                painter.drawLine(wr.left() + int(wr.width() * 0.3), mid - 8, wr.left() + int(wr.width() * 0.6), mid + 6)
+                painter.drawLine(wr.left() + int(wr.width() * 0.6), mid + 6, wr.right() - 8, mid - 4)
 
-                font_val = QFont("Segoe UI", max(7, int(item.font_size * scale_y * 0.7)), QFont.Bold)
+                font_val = QFont("Segoe UI", max(8, int(item.font_size * scale_y * 0.85)), QFont.Bold)
                 painter.setFont(font_val)
+                if item.show_shadow:
+                    painter.setPen(QColor(0, 0, 0, 220))
+                    painter.drawText(wr.right() - painter.fontMetrics().horizontalAdvance(disp_str) - 7, wr.top() + int(wr.height() * 0.38) + 1, disp_str)
                 painter.setPen(accent)
-                painter.drawText(wr.right() - painter.fontMetrics().horizontalAdvance(disp_str) - 6, wr.top() + int(wr.height() * 0.42), disp_str)
+                painter.drawText(wr.right() - painter.fontMetrics().horizontalAdvance(disp_str) - 8, wr.top() + int(wr.height() * 0.38), disp_str)
             else:
                 # Numerical value
-                font_val = QFont("Segoe UI", max(8, int(item.font_size * scale_y * 0.9)), QFont.Bold)
+                font_val = QFont("Segoe UI", max(9, int(item.font_size * scale_y * 1.05)), QFont.Bold)
                 painter.setFont(font_val)
+                if item.show_shadow:
+                    painter.setPen(QColor(0, 0, 0, 220))
+                    painter.drawText(wr.left() + 7, wr.bottom() - 5, disp_str)
                 painter.setPen(QColor(item.color))
-                painter.drawText(wr.left() + 5, wr.bottom() - 4, disp_str)
+                painter.drawText(wr.left() + 6, wr.bottom() - 6, disp_str)
 
             # 3. Selection Highlight & 8-Point Resize Handles
             if is_sel:
@@ -503,6 +540,15 @@ class VisualDesktopEditor(QWidget):
         else:
             self.detected_res = (1366, 768)
 
+        # Screen capture state
+        self.selected_screen = primary
+        self.desktop_pixmap: Optional[QPixmap] = None
+
+        # Gentle auto-capture timer (runs every 3.5s only while editor is visible)
+        self.auto_capture_timer = QTimer(self)
+        self.auto_capture_timer.setInterval(3500)
+        self.auto_capture_timer.timeout.connect(self.capture_desktop)
+
         # Undo / Redo history stack
         self._history: List[Dict[str, Any]] = []
         self._history_idx = -1
@@ -535,7 +581,7 @@ class VisualDesktopEditor(QWidget):
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
         t_layout.addWidget(self.btn_cancel)
 
-        t_layout.addSpacing(10)
+        t_layout.addSpacing(8)
 
         # Undo / Redo
         self.btn_undo = QPushButton("↶ Undo")
@@ -548,72 +594,146 @@ class VisualDesktopEditor(QWidget):
         self.btn_redo.clicked.connect(self._on_redo)
         t_layout.addWidget(self.btn_redo)
 
-        t_layout.addSpacing(10)
+        t_layout.addSpacing(8)
 
         # Reset Controls
-        self.btn_reset_sel = QPushButton("↺ Reset Selected")
+        self.btn_reset_sel = QPushButton("↺ Reset Stat")
         self.btn_reset_sel.setProperty("class", "SecondaryButton")
         self.btn_reset_sel.clicked.connect(self._on_reset_selected)
         t_layout.addWidget(self.btn_reset_sel)
 
-        self.btn_reset_all = QPushButton("↺ Reset All Corners")
+        self.btn_reset_all = QPushButton("↺ Reset All")
         self.btn_reset_all.setProperty("class", "SecondaryButton")
         self.btn_reset_all.clicked.connect(self._on_reset_all)
         t_layout.addWidget(self.btn_reset_all)
 
         t_layout.addStretch()
 
-        # Monitor Resolution Selector
-        t_layout.addWidget(QLabel("Display:"))
+        # Desktop Live Capture Controls
+        self.btn_refresh_preview = QPushButton("⟳ Refresh Desktop")
+        self.btn_refresh_preview.setProperty("class", "SecondaryButton")
+        self.btn_refresh_preview.setToolTip("Capture current live desktop and applications")
+        self.btn_refresh_preview.clicked.connect(self.capture_desktop)
+        t_layout.addWidget(self.btn_refresh_preview)
+
+        self.chk_auto_capture = QCheckBox("Live Auto-Refresh")
+        self.chk_auto_capture.setChecked(False)
+        self.chk_auto_capture.setToolTip("Periodically re-captures desktop preview every 3.5s")
+        self.chk_auto_capture.toggled.connect(self._on_auto_capture_toggled)
+        t_layout.addWidget(self.chk_auto_capture)
+
+        # Monitor Selector
+        t_layout.addWidget(QLabel("Monitor:"))
+        self.combo_screen = QComboBox()
+        screens = QGuiApplication.screens()
+        for idx, s in enumerate(screens):
+            geo = s.geometry()
+            tag = " (Primary)" if s == QGuiApplication.primaryScreen() else ""
+            self.combo_screen.addItem(f"Display {idx + 1}{tag} ({geo.width()}×{geo.height()})", s)
+        self.combo_screen.currentIndexChanged.connect(self._on_screen_changed)
+        t_layout.addWidget(self.combo_screen)
+
+        # Resolution Selector
         self.combo_res = QComboBox()
-        self.combo_res.addItem(f"Primary ({self.detected_res[0]}x{self.detected_res[1]})", self.detected_res)
-        self.combo_res.addItem("1080p (1920x1080)", (1920, 1080))
-        self.combo_res.addItem("1440p (2560x1440)", (2560, 1440))
-        self.combo_res.addItem("4K UHD (3840x2160)", (3840, 2160))
-        self.combo_res.addItem("WXGA (1366x768)", (1366, 768))
+        self.combo_res.addItem(f"Native ({self.detected_res[0]}×{self.detected_res[1]})", self.detected_res)
+        self.combo_res.addItem("1080p (1920×1080)", (1920, 1080))
+        self.combo_res.addItem("1440p (2560×1440)", (2560, 1440))
+        self.combo_res.addItem("4K UHD (3840×2160)", (3840, 2160))
+        self.combo_res.addItem("WXGA (1366×768)", (1366, 768))
         self.combo_res.currentIndexChanged.connect(self._on_res_changed)
         t_layout.addWidget(self.combo_res)
 
         # Snapping Checkbox
-        self.chk_snap = QCheckBox("Snap to Edges")
+        self.chk_snap = QCheckBox("Snap Edges")
         self.chk_snap.setChecked(True)
         self.chk_snap.toggled.connect(self._on_snap_toggled)
         t_layout.addWidget(self.chk_snap)
 
         main_layout.addWidget(toolbar)
 
-        # --- Center: Splitter (Desktop Canvas on Left, Properties on Right) ---
-        splitter = QSplitter(Qt.Horizontal)
+        # --- Center: Splitter (Desktop Canvas 78% on Left, Properties 22% on Right) ---
+        self.splitter = QSplitter(Qt.Horizontal)
 
         # Canvas
         self.canvas = SimulatedDesktopCanvas(self.working_config, screen_res=self.detected_res, parent=self)
         self.canvas.widget_selected.connect(self._on_widget_selected)
         self.canvas.geometry_modified.connect(self._on_canvas_modified)
-        splitter.addWidget(self.canvas)
+        self.splitter.addWidget(self.canvas)
 
-        # Properties Panel
+        # Properties Panel wrapped in ScrollArea to prevent clipping on small displays
         prop_panel = self._build_properties_panel()
-        splitter.addWidget(prop_panel)
-        splitter.setStretchFactor(0, 4)
-        splitter.setStretchFactor(1, 1)
+        self.splitter.addWidget(prop_panel)
+        self.splitter.setStretchFactor(0, 4)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setSizes([850, 250])
 
-        main_layout.addWidget(splitter)
+        main_layout.addWidget(self.splitter)
         self._update_undo_redo_ui()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.capture_desktop()
+        if hasattr(self, "chk_auto_capture") and self.chk_auto_capture.isChecked():
+            self.auto_capture_timer.start()
+        QTimer.singleShot(40, self._apply_splitter_proportions)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.auto_capture_timer.stop()
+
+    def _apply_splitter_proportions(self):
+        w = self.width()
+        if w > 400:
+            self.splitter.setSizes([int(w * 0.77), int(w * 0.23)])
+
+    def capture_desktop(self):
+        """Captures actual desktop background and visible applications where supported."""
+        screen = self.selected_screen or QGuiApplication.primaryScreen()
+        if screen:
+            try:
+                pix = screen.grabWindow(0)
+                if not pix.isNull():
+                    self.desktop_pixmap = pix
+                    self.canvas.set_desktop_pixmap(pix)
+                    geo = screen.geometry()
+                    self.canvas.set_resolution(geo.width(), geo.height())
+                    return
+            except Exception as e:
+                logger.warning(f"Desktop capture exception: {e}")
+        self.canvas.set_desktop_pixmap(None)
+
+    def _on_auto_capture_toggled(self, checked: bool):
+        if checked:
+            self.auto_capture_timer.start()
+            self.capture_desktop()
+        else:
+            self.auto_capture_timer.stop()
+
+    def _on_screen_changed(self):
+        screen = self.combo_screen.currentData()
+        if screen:
+            self.selected_screen = screen
+            self.capture_desktop()
+
     def _build_properties_panel(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("background-color: transparent;")
+
         panel = QFrame()
         panel.setProperty("class", "ContentCard")
-        panel.setMinimumWidth(260)
-        panel.setMaximumWidth(320)
+        panel.setMinimumWidth(230)
         p_layout = QVBoxLayout(panel)
-        p_layout.setContentsMargins(12, 10, 12, 10)
-        p_layout.setSpacing(10)
+        p_layout.setContentsMargins(10, 10, 10, 10)
+        p_layout.setSpacing(8)
 
-        p_title = QLabel("Selected Widget Properties")
+        p_title = QLabel("Widget Inspector")
         p_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #38bdf8;")
         p_layout.addWidget(p_title)
 
-        self.lbl_selected_name = QLabel("Click any widget on the desktop to inspect & edit")
+        self.lbl_selected_name = QLabel("Click any widget on desktop to inspect & edit")
         self.lbl_selected_name.setStyleSheet("color: #94a3b8; font-size: 11px;")
         self.lbl_selected_name.setWordWrap(True)
         p_layout.addWidget(self.lbl_selected_name)
@@ -635,33 +755,33 @@ class VisualDesktopEditor(QWidget):
         # Coordinates
         grid.addWidget(QLabel("Desktop X:"), 1, 0)
         self.spin_x = QSpinBox()
-        self.spin_x.setRange(0, 3840)
+        self.spin_x.setRange(0, 7680)
         self.spin_x.valueChanged.connect(self._on_prop_geom_changed)
         grid.addWidget(self.spin_x, 1, 1)
 
         grid.addWidget(QLabel("Desktop Y:"), 2, 0)
         self.spin_y = QSpinBox()
-        self.spin_y.setRange(0, 2160)
+        self.spin_y.setRange(0, 4320)
         self.spin_y.valueChanged.connect(self._on_prop_geom_changed)
         grid.addWidget(self.spin_y, 2, 1)
 
         # Dimensions
         grid.addWidget(QLabel("Width (px):"), 3, 0)
         self.spin_w = QSpinBox()
-        self.spin_w.setRange(80, 500)
+        self.spin_w.setRange(60, 800)
         self.spin_w.valueChanged.connect(self._on_prop_geom_changed)
         grid.addWidget(self.spin_w, 3, 1)
 
         grid.addWidget(QLabel("Height (px):"), 4, 0)
         self.spin_h = QSpinBox()
-        self.spin_h.setRange(28, 200)
+        self.spin_h.setRange(24, 400)
         self.spin_h.valueChanged.connect(self._on_prop_geom_changed)
         grid.addWidget(self.spin_h, 4, 1)
 
         # Typography
         grid.addWidget(QLabel("Font Size:"), 5, 0)
         self.spin_font = QSpinBox()
-        self.spin_font.setRange(9, 28)
+        self.spin_font.setRange(9, 36)
         self.spin_font.valueChanged.connect(self._on_prop_style_changed)
         grid.addWidget(self.spin_font, 5, 1)
 
@@ -675,7 +795,7 @@ class VisualDesktopEditor(QWidget):
         p_layout.addWidget(self.form_widget)
 
         # Quick Corner Snap Buttons
-        grp_corners = QGroupBox("Quick Corner Snapping")
+        grp_corners = QGroupBox("Corner Placement")
         grp_corners.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; color: #94a3b8; border: 1px solid #1e293b; border-radius: 6px; margin-top: 6px; padding-top: 10px; }")
         c_grid = QGridLayout(grp_corners)
         c_grid.setSpacing(6)
@@ -687,20 +807,25 @@ class VisualDesktopEditor(QWidget):
 
         btn_tr = QPushButton("Top-Right")
         btn_tr.setProperty("class", "SecondaryButton")
-        btn_tr.clicked.connect(lambda: self._snap_selected_corner(self.canvas.res_w - 170, 20))
+        btn_tr.clicked.connect(lambda: self._snap_selected_corner(self.canvas.res_w - 200, 20))
         c_grid.addWidget(btn_tr, 0, 1)
 
         btn_bl = QPushButton("Bottom-Left")
         btn_bl.setProperty("class", "SecondaryButton")
-        btn_bl.clicked.connect(lambda: self._snap_selected_corner(20, self.canvas.res_h - 60))
+        btn_bl.clicked.connect(lambda: self._snap_selected_corner(20, self.canvas.res_h - 75))
         c_grid.addWidget(btn_bl, 1, 0)
 
         btn_br = QPushButton("Bottom-Right")
         btn_br.setProperty("class", "SecondaryButton")
-        btn_br.clicked.connect(lambda: self._snap_selected_corner(self.canvas.res_w - 210, self.canvas.res_h - 60))
+        btn_br.clicked.connect(lambda: self._snap_selected_corner(self.canvas.res_w - 200, self.canvas.res_h - 75))
         c_grid.addWidget(btn_br, 1, 1)
 
         p_layout.addWidget(grp_corners)
+        p_layout.addStretch()
+
+        self.form_widget.setEnabled(False)
+        scroll.setWidget(panel)
+        return scroll
         p_layout.addStretch()
 
         self.form_widget.setEnabled(False)

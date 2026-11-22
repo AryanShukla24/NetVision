@@ -492,3 +492,142 @@ def test_floating_widget_transparency_and_master_lock(qapp):
     assert widget.master_locked is True
 
     widget.close()
+
+
+# ==========================================
+# 12. Toast Notification Feedback Tests
+# ==========================================
+
+def test_toast_notification_feedback(qapp):
+    from PySide6.QtWidgets import QWidget
+    from netvision.ui.components.toast import ToastNotification
+    parent_widget = QWidget()
+    parent_widget.resize(800, 600)
+    toast = ToastNotification(parent_widget)
+
+    # Test success toast
+    toast.show_toast("Operation successful", toast_type="success")
+    assert not toast.isHidden()
+    assert "Operation successful" in toast.lbl_msg.text()
+    assert toast.lbl_icon.text() == "✔"
+
+    # Test error toast
+    toast.show_toast("Validation failed", toast_type="error")
+    assert "Validation failed" in toast.lbl_msg.text()
+    assert toast.lbl_icon.text() == "⚠"
+
+    # Test info toast via show_message alias
+    toast.show_message("Information update", toast_type="info")
+    assert "Information update" in toast.lbl_msg.text()
+    assert toast.lbl_icon.text() == "ℹ"
+
+    # Check positioning
+    toast._position_toast()
+    assert toast.x() > 0
+    assert toast.y() == 24
+
+    parent_widget.close()
+
+
+# ==========================================
+# 13. Table Alignment, Headers & Proportions Tests
+# ==========================================
+
+def test_table_alignment_and_proportions(qapp):
+    cfg = OverlayConfig()
+    page = SettingsPage(overlay_config=cfg)
+    page.resize(1000, 700)
+
+    # Shortcuts Table format
+    assert page.table_shortcuts.verticalHeader().isVisible() is False
+    assert page.table_shortcuts.verticalHeader().defaultSectionSize() == 44
+    assert page.table_shortcuts.rowCount() == 11
+    assert page.table_shortcuts.columnCount() == 4
+
+    # Positioning Table format
+    assert page.table_pos.verticalHeader().isVisible() is False
+    assert page.table_pos.verticalHeader().defaultSectionSize() == 44
+    assert page.table_pos.rowCount() == 11
+    assert page.table_pos.columnCount() == 6
+
+    # Verify column proportions adjustment
+    page._adjust_table_columns()
+    page.table_shortcuts.resize(800, 400)
+    page._adjust_table_columns()
+
+    # Verify wrapped cell widgets exist in rows
+    assert page.table_shortcuts.cellWidget(0, 1) is not None
+    assert page.table_shortcuts.cellWidget(0, 2) is not None
+    assert page.table_shortcuts.cellWidget(0, 3) is not None
+
+    assert page.table_pos.cellWidget(0, 1) is not None
+    assert page.table_pos.cellWidget(0, 2) is not None
+    assert page.table_pos.cellWidget(0, 3) is not None
+    assert page.table_pos.cellWidget(0, 4) is not None
+    assert page.table_pos.cellWidget(0, 5) is not None
+
+    page.close()
+
+
+# ==========================================
+# 14. Dropdown Arrow Styling & Resource Assets Tests
+# ==========================================
+
+def test_dropdown_arrows_and_theme_resources():
+    import os
+    from netvision.ui.theme import CHEVRON_DOWN_PATH, CHEVRON_DOWN_HOVER_PATH, DARK_THEME_QSS
+
+    # Asset files must physically exist
+    assert os.path.exists(CHEVRON_DOWN_PATH), f"Missing icon: {CHEVRON_DOWN_PATH}"
+    assert os.path.exists(CHEVRON_DOWN_HOVER_PATH), f"Missing icon: {CHEVRON_DOWN_HOVER_PATH}"
+
+    # QSS must reference QComboBox::down-arrow and down-arrow:hover
+    assert "QComboBox::down-arrow" in DARK_THEME_QSS
+    assert "QComboBox::down-arrow:hover" in DARK_THEME_QSS
+    assert "padding: 6px 34px 6px 12px;" in DARK_THEME_QSS
+
+
+# ==========================================
+# 15. Widget Dimensions & Non-Blocking Save Workflow Tests
+# ==========================================
+
+def test_updated_default_widget_dimensions():
+    # Verify default starting dimensions in catalog
+    catalog = get_default_stats_catalog()
+
+    # Numbers default: 180 x 65 px
+    for sid in ["fps", "cpu", "gpu", "ram", "ping", "jitter", "packet_loss", "download_speed", "upload_speed", "wifi_signal"]:
+        item = catalog[sid]
+        assert item.width == 180, f"{sid} width is {item.width}, expected 180"
+        assert item.height == 65, f"{sid} height is {item.height}, expected 65"
+        assert item.graph_width == 240, f"{sid} graph_width is {item.graph_width}, expected 240"
+        assert item.graph_height == 110, f"{sid} graph_height is {item.graph_height}, expected 110"
+
+
+def test_settings_save_all_toast_workflow(qapp):
+    cfg = OverlayConfig()
+    page = SettingsPage(overlay_config=cfg)
+
+    # Trigger save with valid thresholds
+    saved_payload = []
+    page.request_save_settings.connect(lambda p: saved_payload.append(p))
+
+    page.btn_save_all.click()
+
+    # Must emit save request
+    assert len(saved_payload) == 1
+    # Must show non-blocking success toast
+    assert page.toast.lbl_icon.text() == "✔"
+    assert "Settings saved successfully" in page.toast.lbl_msg.text()
+
+    # Test invalid ordering trigger error toast (not modal)
+    page.spin_s_exc.setValue(40)
+    page.spin_s_good.setValue(60)  # Invalid: exc < good
+    page.btn_save_all.click()
+
+    # Must show error toast
+    assert page.toast.lbl_icon.text() == "⚠"
+    assert "Validation Error" in page.toast.lbl_msg.text()
+
+    page.close()
+

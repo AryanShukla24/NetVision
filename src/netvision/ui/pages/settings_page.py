@@ -33,6 +33,7 @@ from netvision.core.overlay_config import (
 )
 from netvision.ui.overlay.stat_detail_dialog import StatDetailDialog
 from netvision.ui.overlay.visual_editor import VisualDesktopEditor
+from netvision.ui.components.toast import ToastNotification
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,62 @@ class SettingsPage(QWidget):
         super().__init__(parent)
         self.config = overlay_config or OverlayConfig.load()
         self._build_ui()
+        self.toast = ToastNotification(self)
+
+    def show_toast(self, message: str, toast_type: str = "success", duration_ms: int = 3500):
+        """Displays non-blocking animated toast feedback."""
+        if hasattr(self, "toast") and self.toast:
+            self.toast.show_toast(message, toast_type=toast_type, duration_ms=duration_ms)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "toast") and self.toast:
+            self.toast._position_toast()
+        self._adjust_table_columns()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._adjust_table_columns()
+
+    def _wrap_cell_widget(self, widget: QWidget, align=Qt.AlignCenter) -> QWidget:
+        """Wraps a cell widget inside a transparent container layout for precise vertical and horizontal alignment."""
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setAlignment(align)
+        layout.addWidget(widget)
+        return container
+
+    def _adjust_table_columns(self):
+        """Proportionally distributes column widths to prevent cut-off headers, clipped dropdowns, and button overflow."""
+        if hasattr(self, "table_shortcuts") and self.table_shortcuts:
+            viewport_w = self.table_shortcuts.viewport().width()
+            if viewport_w > 120:
+                c0 = int(viewport_w * 0.35)
+                c1 = int(viewport_w * 0.22)
+                c2 = int(viewport_w * 0.25)
+                c3 = max(60, viewport_w - c0 - c1 - c2 - 2)
+                self.table_shortcuts.setColumnWidth(0, c0)
+                self.table_shortcuts.setColumnWidth(1, c1)
+                self.table_shortcuts.setColumnWidth(2, c2)
+                self.table_shortcuts.setColumnWidth(3, c3)
+
+        if hasattr(self, "table_pos") and self.table_pos:
+            viewport_w = self.table_pos.viewport().width()
+            if viewport_w > 120:
+                c0 = int(viewport_w * 0.30)
+                c1 = int(viewport_w * 0.16)
+                c2 = int(viewport_w * 0.16)
+                c3 = int(viewport_w * 0.18)
+                c4 = int(viewport_w * 0.12)
+                c5 = max(50, viewport_w - c0 - c1 - c2 - c3 - c4 - 2)
+                self.table_pos.setColumnWidth(0, c0)
+                self.table_pos.setColumnWidth(1, c1)
+                self.table_pos.setColumnWidth(2, c2)
+                self.table_pos.setColumnWidth(3, c3)
+                self.table_pos.setColumnWidth(4, c4)
+                self.table_pos.setColumnWidth(5, c5)
 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
@@ -182,6 +239,7 @@ class SettingsPage(QWidget):
         self.tab_widget.addTab(self.tab_thresholds, "⚙ Thresholds & Locations")
 
         main_layout.addWidget(self.tab_widget)
+        self.tab_widget.currentChanged.connect(lambda _: self._adjust_table_columns())
 
     # --- SUBSECTION 1: GENERAL ---
 
@@ -336,7 +394,7 @@ class SettingsPage(QWidget):
         self._populate_stats_table()
         self._populate_positioning_table()
         self.overlay_config_changed.emit(self.config)
-        QMessageBox.information(self, "Overlay Reset", "Overlay settings restored to standard performance defaults (disabled).")
+        self.show_toast("Overlay settings restored to standard performance defaults (disabled).", "info")
 
     # --- SUBSECTION 2: INDIVIDUAL STATISTICS ---
 
@@ -711,8 +769,21 @@ class SettingsPage(QWidget):
         self.table_pos.setHorizontalHeaderLabels([
             "Statistic", "X Coordinate", "Y Coordinate", "Quick Snap Corner", "Reset Single", "Lock"
         ])
-        self.table_pos.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table_pos.verticalHeader().setVisible(False)
+        self.table_pos.verticalHeader().setDefaultSectionSize(44)
         self.table_pos.setAlternatingRowColors(False)
+        self.table_pos.setShowGrid(True)
+        self.table_pos.setStyleSheet(f"""
+            QTableWidget {{
+                gridline-color: #1e293b;
+                background-color: #0b111e;
+                border: 1px solid #1e293b;
+                border-radius: 6px;
+            }}
+            QTableWidget::item {{
+                padding: 4px 8px;
+            }}
+        """)
 
         self._populate_positioning_table()
         c_layout.addWidget(self.table_pos)
@@ -745,7 +816,7 @@ class SettingsPage(QWidget):
         self._populate_stats_table()
         self._populate_positioning_table()
         self.pos_stack.setCurrentIndex(0)
-        QMessageBox.information(self, "Layout Applied", "Visual overlay layout has been saved and applied to your desktop.")
+        self.show_toast("Visual overlay layout saved and applied to your desktop.", "success")
 
     def _on_visual_editor_cancelled(self):
         self.pos_stack.setCurrentIndex(0)
@@ -811,23 +882,26 @@ class SettingsPage(QWidget):
             self.table_pos.insertRow(row)
 
             # 0: Name
-            s_name = QTableWidgetItem(f"{item.name} ({item.mode.capitalize()})")
+            s_name = QTableWidgetItem(f"  {item.name} ({item.mode.capitalize()})")
             s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
+            s_name.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             self.table_pos.setItem(row, 0, s_name)
 
             # 1: X Coordinate
             spin_x = QSpinBox()
             spin_x.setRange(0, 7680)
             spin_x.setValue(item.x)
+            spin_x.setMinimumHeight(30)
             spin_x.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, x=v))
-            self.table_pos.setCellWidget(row, 1, spin_x)
+            self.table_pos.setCellWidget(row, 1, self._wrap_cell_widget(spin_x, Qt.AlignCenter))
 
             # 2: Y Coordinate
             spin_y = QSpinBox()
             spin_y.setRange(0, 4320)
             spin_y.setValue(item.y)
+            spin_y.setMinimumHeight(30)
             spin_y.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, y=v))
-            self.table_pos.setCellWidget(row, 2, spin_y)
+            self.table_pos.setCellWidget(row, 2, self._wrap_cell_widget(spin_y, Qt.AlignCenter))
 
             # 3: Quick Snap Corner
             combo_corner = QComboBox()
@@ -836,22 +910,24 @@ class SettingsPage(QWidget):
             combo_corner.addItem("Top-Right", (1180, 24))
             combo_corner.addItem("Bottom-Left", (24, 700))
             combo_corner.addItem("Bottom-Right", (1180, 700))
+            combo_corner.setMinimumHeight(30)
             combo_corner.currentIndexChanged.connect(
                 lambda idx, s=stat_id, c=combo_corner, sx=spin_x, sy=spin_y: self._on_snap_corner(s, c, sx, sy)
             )
-            self.table_pos.setCellWidget(row, 3, combo_corner)
+            self.table_pos.setCellWidget(row, 3, self._wrap_cell_widget(combo_corner, Qt.AlignCenter))
 
             # 4: Reset single button
             btn_res = QPushButton("Reset Pos")
             btn_res.setProperty("class", "SecondaryButton")
+            btn_res.setMinimumHeight(30)
             btn_res.clicked.connect(lambda _, s=stat_id, sx=spin_x, sy=spin_y: self._on_reset_single_pos(s, sx, sy))
-            self.table_pos.setCellWidget(row, 4, btn_res)
+            self.table_pos.setCellWidget(row, 4, self._wrap_cell_widget(btn_res, Qt.AlignCenter))
 
             # 5: Lock checkbox
             chk_lock = QCheckBox("Lock")
             chk_lock.setChecked(item.is_locked)
             chk_lock.toggled.connect(lambda chk, s=stat_id: self._on_single_lock_toggled(s, chk))
-            self.table_pos.setCellWidget(row, 5, chk_lock)
+            self.table_pos.setCellWidget(row, 5, self._wrap_cell_widget(chk_lock, Qt.AlignCenter))
 
     def _on_coord_changed(self, stat_id: str, x: Optional[int] = None, y: Optional[int] = None):
         if stat_id in self.config.stats:
@@ -891,7 +967,7 @@ class SettingsPage(QWidget):
         self.config.save()
         self._populate_positioning_table()
         self.overlay_config_changed.emit(self.config)
-        QMessageBox.information(self, "Positions Reset", "All floating widgets returned to default screen positions.")
+        self.show_toast("All floating widgets returned to default screen positions.", "info")
 
     # --- SUBSECTION 4: APPEARANCE ---
 
@@ -1026,8 +1102,21 @@ class SettingsPage(QWidget):
         self.table_shortcuts.setHorizontalHeaderLabels([
             "Statistic", "Assigned Shortcut", "Bind Key Action", "Clear"
         ])
-        self.table_shortcuts.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table_shortcuts.verticalHeader().setVisible(False)
+        self.table_shortcuts.verticalHeader().setDefaultSectionSize(44)
         self.table_shortcuts.setAlternatingRowColors(False)
+        self.table_shortcuts.setShowGrid(True)
+        self.table_shortcuts.setStyleSheet(f"""
+            QTableWidget {{
+                gridline-color: #1e293b;
+                background-color: #0b111e;
+                border: 1px solid #1e293b;
+                border-radius: 6px;
+            }}
+            QTableWidget::item {{
+                padding: 4px 8px;
+            }}
+        """)
 
         self._populate_shortcuts_table()
         c_layout.addWidget(self.table_shortcuts)
@@ -1045,8 +1134,9 @@ class SettingsPage(QWidget):
             self.table_shortcuts.insertRow(row)
 
             # 0: Name
-            s_name = QTableWidgetItem(item.name)
+            s_name = QTableWidgetItem(f"  {item.name}")
             s_name.setFlags(s_name.flags() ^ Qt.ItemIsEditable)
+            s_name.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             self.table_shortcuts.setItem(row, 0, s_name)
 
             # 1: Current shortcut display badge
@@ -1055,29 +1145,32 @@ class SettingsPage(QWidget):
             lbl_badge.setAlignment(Qt.AlignCenter)
             color_style = "color: #38bdf8; font-weight: bold;" if item.shortcut else "color: #64748b;"
             lbl_badge.setStyleSheet(f"background-color: #1e293b; padding: 4px 8px; border-radius: 4px; {color_style}")
-            self.table_shortcuts.setCellWidget(row, 1, lbl_badge)
+            lbl_badge.setMinimumHeight(28)
+            self.table_shortcuts.setCellWidget(row, 1, self._wrap_cell_widget(lbl_badge, Qt.AlignCenter))
 
             # 2: Key Recorder Button
             btn_rec = KeyRecorderButton(item.shortcut)
+            btn_rec.setMinimumHeight(30)
             btn_rec.shortcut_recorded.connect(
                 lambda sc, s=stat_id, l=lbl_badge: self._on_shortcut_recorded(s, sc, l)
             )
-            self.table_shortcuts.setCellWidget(row, 2, btn_rec)
+            self.table_shortcuts.setCellWidget(row, 2, self._wrap_cell_widget(btn_rec, Qt.AlignCenter))
 
             # 3: Clear Button
             btn_clear = QPushButton("Clear")
             btn_clear.setProperty("class", "SecondaryButton")
+            btn_clear.setMinimumHeight(30)
             btn_clear.clicked.connect(
                 lambda _, s=stat_id, b=btn_rec, l=lbl_badge: self._on_shortcut_cleared(s, b, l)
             )
-            self.table_shortcuts.setCellWidget(row, 3, btn_clear)
+            self.table_shortcuts.setCellWidget(row, 3, self._wrap_cell_widget(btn_clear, Qt.AlignCenter))
 
     def _on_master_shortcut_recorded(self, shortcut_str: str):
         shortcut_str = shortcut_str.strip()
         # Conflict check against metric shortcuts
         for s_id, item in self.config.stats.items():
             if item.shortcut.strip().upper() == shortcut_str.upper():
-                QMessageBox.warning(self, "Conflict", f"Shortcut '{shortcut_str}' is already assigned to {item.name}.")
+                self.show_toast(f"Conflict: Shortcut '{shortcut_str}' is already assigned to {item.name}.", "error")
                 self.btn_master_rec.setText(self.config.master_shortcut or "(None)")
                 return
         self.config.master_shortcut = shortcut_str
@@ -1094,12 +1187,12 @@ class SettingsPage(QWidget):
         shortcut_str = shortcut_str.strip()
         if shortcut_str:
             if self.config.master_shortcut.strip().upper() == shortcut_str.upper():
-                QMessageBox.warning(self, "Conflict", f"Shortcut '{shortcut_str}' is already assigned to Master Overlay Toggle.")
+                self.show_toast(f"Conflict: Shortcut '{shortcut_str}' is already assigned to Master Overlay Toggle.", "error")
                 self._populate_shortcuts_table()
                 return
             for other_id, other_item in self.config.stats.items():
                 if other_id != stat_id and other_item.shortcut.strip().upper() == shortcut_str.upper():
-                    QMessageBox.warning(self, "Conflict", f"Shortcut '{shortcut_str}' is already assigned to {other_item.name}.")
+                    self.show_toast(f"Conflict: Shortcut '{shortcut_str}' is already assigned to {other_item.name}.", "error")
                     self._populate_shortcuts_table()
                     return
 
@@ -1128,7 +1221,7 @@ class SettingsPage(QWidget):
             self.shortcut_updated.emit(stat_id, "")
         self.config.save()
         self._populate_shortcuts_table()
-        QMessageBox.information(self, "Shortcuts Unassigned", "All keyboard shortcuts have been unassigned.")
+        self.show_toast("All keyboard shortcuts have been unassigned.", "info")
 
     # --- SUBSECTION 6: PRESETS ---
 
@@ -1205,7 +1298,7 @@ class SettingsPage(QWidget):
         self._populate_stats_table()
         self._populate_positioning_table()
         self.overlay_config_changed.emit(self.config)
-        QMessageBox.information(self, "Preset Applied", f"Preset '{name}' applied successfully.")
+        self.show_toast(f"Preset '{name}' applied successfully.", "success")
 
     def _on_save_custom_preset(self):
         name, ok = QInputDialog.getText(self, "Save Custom Preset", "Enter a unique preset name:")
@@ -1213,7 +1306,7 @@ class SettingsPage(QWidget):
             clean = name.strip()
             self.config.save_custom_preset(clean)
             self._refresh_presets_list()
-            QMessageBox.information(self, "Preset Saved", f"Preset '{clean}' saved.")
+            self.show_toast(f"Preset '{clean}' saved.", "success")
 
     def _on_delete_custom_preset(self):
         sel = self.list_presets.currentItem()
@@ -1222,7 +1315,7 @@ class SettingsPage(QWidget):
         name = sel.text().split(" ")[1]
         if self.config.delete_custom_preset(name):
             self._refresh_presets_list()
-            QMessageBox.information(self, "Deleted", f"Preset '{name}' removed.")
+            self.show_toast(f"Preset '{name}' removed.", "info")
 
     def _on_export_presets_json(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export Overlay Configuration", "netvision_overlay_config.json", "JSON Files (*.json)")
@@ -1230,9 +1323,9 @@ class SettingsPage(QWidget):
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(self.config.to_dict(), f, indent=2)
-                QMessageBox.information(self, "Export Successful", f"Saved configuration to:\n{path}")
+                self.show_toast(f"Configuration exported to {Path(path).name}.", "success")
             except Exception as e:
-                QMessageBox.critical(self, "Export Error", f"Failed to export: {e}")
+                self.show_toast(f"Export Error: {e}", "error")
 
     def _on_import_presets_json(self):
         path, _ = QFileDialog.getOpenFileName(self, "Import Overlay Configuration", "", "JSON Files (*.json)")
@@ -1247,9 +1340,9 @@ class SettingsPage(QWidget):
                 self._populate_positioning_table()
                 self._populate_shortcuts_table()
                 self.overlay_config_changed.emit(self.config)
-                QMessageBox.information(self, "Import Successful", "Overlay configuration imported successfully.")
+                self.show_toast("Overlay configuration imported successfully.", "success")
             except Exception as e:
-                QMessageBox.critical(self, "Import Error", f"Failed to import: {e}")
+                self.show_toast(f"Import Error: {e}", "error")
 
     # --- SUBSECTION 7: NETWORK THRESHOLDS & LOCATIONS ---
 
@@ -1481,35 +1574,39 @@ class SettingsPage(QWidget):
         self.overlay_config_changed.emit(self.config)
 
         self.request_restore_defaults.emit()
-        QMessageBox.information(self, "Defaults Restored", "System thresholds and overlay settings restored to defaults.")
+        self.show_toast("System thresholds and overlay settings restored to defaults.", "info")
 
     def _on_save_all_clicked(self):
         s_exc = self.spin_s_exc.value()
         s_good = self.spin_s_good.value()
         s_fair = self.spin_s_fair.value()
         if not (s_exc > s_good > s_fair):
-            QMessageBox.warning(self, "Invalid Ordering", "Wi-Fi Signal: Excellent > Good > Fair.")
+            self.show_toast("Validation Error: Wi-Fi Signal must be Excellent > Good > Fair.", "error")
             return
 
         l_exc = self.spin_l_exc.value()
         l_good = self.spin_l_good.value()
         l_fair = self.spin_l_fair.value()
         if not (l_exc < l_good < l_fair):
-            QMessageBox.warning(self, "Invalid Ordering", "Latency: Excellent < Good < Fair.")
+            self.show_toast("Validation Error: Latency must be Excellent < Good < Fair.", "error")
             return
 
         p_good = self.spin_p_good.value()
         p_fair = self.spin_p_fair.value()
         if not (p_good < p_fair):
-            QMessageBox.warning(self, "Invalid Ordering", "Packet Loss: Good < Fair.")
+            self.show_toast("Validation Error: Packet Loss must be Good < Fair.", "error")
             return
 
         d_exc = self.spin_d_exc.value()
         d_good = self.spin_d_good.value()
         d_fair = self.spin_d_fair.value()
         if not (d_exc > d_good > d_fair):
-            QMessageBox.warning(self, "Invalid Ordering", "Download Speed: Excellent > Good > Fair.")
+            self.show_toast("Validation Error: Download Speed must be Excellent > Good > Fair.", "error")
             return
+
+        # Visual saving feedback and button state protection
+        self.btn_save_all.setEnabled(False)
+        self.btn_save_all.setText("💾 Saving...")
 
         target_host = self.input_default_target.text().strip() or "8.8.8.8"
         interval = self.spin_interval.value()
@@ -1530,4 +1627,7 @@ class SettingsPage(QWidget):
         self.config.save()
         self.overlay_config_changed.emit(self.config)
         self.request_save_settings.emit(payload)
-        QMessageBox.information(self, "Settings Saved", "All overlay, shortcut, and network threshold settings saved successfully.")
+
+        self.show_toast("Settings saved successfully!", "success")
+        self.btn_save_all.setText("💾 Save All Changes")
+        self.btn_save_all.setEnabled(True)

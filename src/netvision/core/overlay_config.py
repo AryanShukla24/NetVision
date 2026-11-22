@@ -40,8 +40,8 @@ class StatItemConfig:
     # Independent Multi-Window Desktop Coordinates
     x: int = 100
     y: int = 100
-    width: int = 160
-    height: int = 44
+    width: int = 180
+    height: int = 65
     
     # Appearance & Styling
     opacity: float = 0.95            # Window opacity (0.2 to 1.0)
@@ -57,8 +57,8 @@ class StatItemConfig:
     padding: int = 6
     
     # Graph style controls
-    graph_width: int = 200
-    graph_height: int = 60
+    graph_width: int = 240
+    graph_height: int = 110
     graph_scale_mode: str = "auto"   # "auto" or "fixed"
     graph_min: float = 0.0
     graph_max: float = 100.0
@@ -95,8 +95,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.NUMBERS,
             unit="FPS",
-            x=1180, y=20, width=150, height=44,
-            graph_width=200, graph_height=60,
+            x=1160, y=20, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#34d399",
             shortcut=""
         ),
@@ -106,8 +106,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="ms",
-            x=1180, y=68, width=150, height=44,
-            graph_width=200, graph_height=60,
+            x=1160, y=95, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#fbbf24",
             shortcut=""
         ),
@@ -117,8 +117,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="%",
-            x=1180, y=116, width=150, height=44,
-            graph_width=200, graph_height=60,
+            x=1160, y=170, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#34d399",
             shortcut=""
         ),
@@ -130,8 +130,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.GRAPH,
             unit="%",
-            x=20, y=20, width=190, height=60,
-            graph_width=190, graph_height=60,
+            x=20, y=20, width=180, height=65,
+            graph_width=240, graph_height=110,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
             color="#38bdf8",
             shortcut=""
@@ -142,8 +142,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.GRAPH,
             unit="%",
-            x=20, y=88, width=190, height=60,
-            graph_width=190, graph_height=60,
+            x=20, y=140, width=180, height=65,
+            graph_width=240, graph_height=110,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
             color="#a78bfa",
             shortcut=""
@@ -154,8 +154,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="system",
             mode=DisplayMode.NUMBERS,
             unit="%",
-            x=20, y=156, width=190, height=44,
-            graph_width=190, graph_height=60,
+            x=20, y=260, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#f472b6",
             shortcut=""
         ),
@@ -167,8 +167,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="KB/s",
-            x=1140, y=700, width=190, height=44,
-            graph_width=210, graph_height=60,
+            x=1160, y=680, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#38bdf8",
             shortcut=""
         ),
@@ -178,8 +178,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="Mbps",
-            x=1140, y=650, width=190, height=44,
-            graph_width=210, graph_height=60,
+            x=1160, y=605, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#60a5fa",
             shortcut=""
         ),
@@ -189,8 +189,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="Mbps",
-            x=1140, y=600, width=190, height=44,
-            graph_width=210, graph_height=60,
+            x=1160, y=530, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#818cf8",
             shortcut=""
         ),
@@ -202,8 +202,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="ms",
-            x=20, y=700, width=160, height=44,
-            graph_width=190, graph_height=60,
+            x=20, y=680, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#f97316",
             shortcut=""
         ),
@@ -213,8 +213,8 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             category="network",
             mode=DisplayMode.NUMBERS,
             unit="%",
-            x=20, y=650, width=160, height=44,
-            graph_width=190, graph_height=60,
+            x=20, y=605, width=180, height=65,
+            graph_width=240, graph_height=110,
             color="#f87171",
             shortcut=""
         ),
