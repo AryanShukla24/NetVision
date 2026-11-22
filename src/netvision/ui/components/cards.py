@@ -1,11 +1,12 @@
 """
 NetVision - Metric Card Component
 Displays an individual network metric (e.g. Signal, Speed, Latency, Loss)
-with clean typography, status pill, and responsive sizing.
+with clean monospace data typography, status pill, and telemetry HUD styling.
 """
 
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from netvision.config import COLORS
 
 
@@ -18,8 +19,8 @@ class MetricCard(QFrame):
         self.unit = unit
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(4)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(3)
 
         # Header Row
         header_layout = QHBoxLayout()
@@ -29,9 +30,10 @@ class MetricCard(QFrame):
         header_layout.addStretch()
         layout.addLayout(header_layout)
 
-        # Value Row
+        # Value Row with monospace data typography
         self.value_label = QLabel(f"{initial_value} {self.unit}".strip())
         self.value_label.setProperty("class", "CardValue")
+        self.value_label.setFont(QFont("Consolas", 18, QFont.Bold))
         layout.addWidget(self.value_label)
 
         # Subtitle / Trend Row

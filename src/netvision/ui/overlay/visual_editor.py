@@ -20,12 +20,13 @@ from PySide6.QtGui import (
     QCursor, QPaintEvent, QGuiApplication, QPixmap, QScreen
 )
 
-logger = logging.getLogger(__name__)
-
+from netvision.config import COLORS
 from netvision.core.overlay_config import (
     OverlayConfig, StatItemConfig, DisplayMode, get_default_stats_catalog
 )
 from netvision.ui.overlay.mini_graph import MiniGraphWidget
+
+logger = logging.getLogger(__name__)
 
 # Handle identifiers for 8-point resizing
 HANDLE_NONE = 0
@@ -77,7 +78,7 @@ class SimulatedDesktopCanvas(QWidget):
         self.desktop_pixmap: Optional[QPixmap] = None
 
         self.setMouseTracking(True)
-        self.setMinimumSize(540, 320)
+        self.setMinimumSize(480, 280)
 
     def set_desktop_pixmap(self, pixmap: Optional[QPixmap]):
         self.desktop_pixmap = pixmap
@@ -320,19 +321,15 @@ class SimulatedDesktopCanvas(QWidget):
 
         # 1. Desktop Edge Snapping
         if self.snap_to_edges:
-            # Snap to left edge
             if abs(x - 20) <= snap_thresh:
                 x = 20
                 self._active_guides.append((True, 20))
-            # Snap to right edge
             if abs((x + w) - (self.res_w - 20)) <= snap_thresh:
                 x = self.res_w - 20 - w
                 self._active_guides.append((True, self.res_w - 20))
-            # Snap to top edge
             if abs(y - 20) <= snap_thresh:
                 y = 20
                 self._active_guides.append((False, 20))
-            # Snap to bottom edge
             if abs((y + h) - (self.res_h - 20)) <= snap_thresh:
                 y = self.res_h - 20 - h
                 self._active_guides.append((False, self.res_h - 20))
@@ -382,40 +379,36 @@ class SimulatedDesktopCanvas(QWidget):
         painter.setRenderHint(QPainter.TextAntialiasing, True)
 
         cw, ch = self.width(), self.height()
-        painter.fillRect(0, 0, cw, ch, QColor(11, 15, 25))
+        painter.fillRect(0, 0, cw, ch, QColor(16, 21, 28))
 
-        # Draw Simulated Desktop Workspace
-        dr = self.get_desktop_rect()
-
-        # Draw Desktop Workspace (Live capture or simulated fallback)
         dr = self.get_desktop_rect()
 
         if self.desktop_pixmap and not self.desktop_pixmap.isNull():
             # Actual live desktop capture preview
             painter.drawPixmap(dr, self.desktop_pixmap)
             # Subtle glass tint overlay to guarantee widget readability against any background
-            painter.fillRect(dr, QColor(0, 0, 0, 35))
-            pen_border = QPen(QColor(56, 189, 248, 200), 2)
+            painter.fillRect(dr, QColor(0, 0, 0, 40))
+            pen_border = QPen(QColor(COLORS["primary"]), 2)
             painter.setPen(pen_border)
             painter.drawRect(dr)
 
             # Live watermark badge
             font_watermark = QFont("Segoe UI", 9, QFont.Bold)
             painter.setFont(font_watermark)
-            painter.setPen(QColor(52, 211, 153))
+            painter.setPen(QColor(COLORS["success"]))
             wm_text = f"● Live Desktop Preview ({self.res_w} × {self.res_h})"
             painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(wm_text) - 12, dr.bottom() - 12, wm_text)
         else:
-            # Fallback high-tech simulated dark grid
-            painter.fillRect(dr, QColor(15, 23, 42))
-            pen_border = QPen(QColor(56, 189, 248, 140), 1.5)
+            # Fallback technical dark canvas
+            painter.fillRect(dr, QColor(21, 29, 39))
+            pen_border = QPen(QColor(COLORS["border_light"]), 1.5)
             painter.setPen(pen_border)
             painter.drawRect(dr)
 
             font_watermark = QFont("Segoe UI", 9, QFont.Bold)
             painter.setFont(font_watermark)
-            painter.setPen(QColor(148, 163, 184))
-            wm_text = f"Simulated Display ({self.res_w} × {self.res_h})"
+            painter.setPen(QColor(COLORS["text_secondary"]))
+            wm_text = f"Desktop Canvas ({self.res_w} × {self.res_h})"
             painter.drawText(dr.right() - painter.fontMetrics().horizontalAdvance(wm_text) - 12, dr.bottom() - 12, wm_text)
 
         # Draw Alignment Guide Lines (Cyan/Red)
@@ -423,7 +416,7 @@ class SimulatedDesktopCanvas(QWidget):
         scale_y = dr.height() / self.res_h
 
         if self._active_guides:
-            guide_pen = QPen(QColor(244, 63, 94, 220), 1, Qt.DashLine)
+            guide_pen = QPen(QColor(COLORS["danger"]), 1, Qt.DashLine)
             painter.setPen(guide_pen)
             for is_vert, d_coord in self._active_guides:
                 if is_vert:
@@ -448,13 +441,12 @@ class SimulatedDesktopCanvas(QWidget):
             # 1. Widget Card Background (Transparent or subtle)
             if item.show_subtle_bg:
                 bg_a = int(item.bg_opacity * 255)
-                painter.fillRect(wr, QColor(15, 23, 42, max(50, bg_a)))
-                painter.setPen(QPen(QColor(51, 65, 85, max(60, bg_a)), 1))
+                painter.fillRect(wr, QColor(16, 21, 28, max(50, bg_a)))
+                painter.setPen(QPen(QColor(30, 42, 56, max(60, bg_a)), 1))
                 painter.drawRoundedRect(wr, 4, 4)
             else:
-                # Genuinely transparent mode: render light subtle outline so user sees bounds in preview
-                painter.fillRect(wr, QColor(15, 23, 42, 45))
-                painter.setPen(QPen(QColor(56, 189, 248, 90), 1, Qt.DashLine))
+                painter.fillRect(wr, QColor(16, 21, 28, 45))
+                painter.setPen(QPen(QColor(34, 184, 207, 90), 1, Qt.DashLine))
                 painter.drawRoundedRect(wr, 4, 4)
 
             # 2. Widget Content
@@ -466,7 +458,7 @@ class SimulatedDesktopCanvas(QWidget):
                 painter.setPen(QColor(0, 0, 0, 220))
                 painter.drawText(wr.left() + 7, wr.top() + int(wr.height() * 0.38) + 1, item.name)
 
-            painter.setPen(QColor(241, 245, 249))
+            painter.setPen(QColor(COLORS["text_bright"]))
             painter.drawText(wr.left() + 6, wr.top() + int(wr.height() * 0.38), item.name)
 
             # Telemetry Value / Sparkline Preview
@@ -474,7 +466,6 @@ class SimulatedDesktopCanvas(QWidget):
             disp_str = t_data.get("display", "--")
 
             if item.mode == DisplayMode.GRAPH:
-                # Sparkline in preview
                 accent = QColor(item.color)
                 painter.setPen(QPen(accent, 1.8))
                 mid = wr.top() + int(wr.height() * 0.68)
@@ -482,7 +473,7 @@ class SimulatedDesktopCanvas(QWidget):
                 painter.drawLine(wr.left() + int(wr.width() * 0.3), mid - 8, wr.left() + int(wr.width() * 0.6), mid + 6)
                 painter.drawLine(wr.left() + int(wr.width() * 0.6), mid + 6, wr.right() - 8, mid - 4)
 
-                font_val = QFont("Segoe UI", max(8, int(item.font_size * scale_y * 0.85)), QFont.Bold)
+                font_val = QFont("Consolas", max(8, int(item.font_size * scale_y * 0.85)), QFont.Bold)
                 painter.setFont(font_val)
                 if item.show_shadow:
                     painter.setPen(QColor(0, 0, 0, 220))
@@ -490,8 +481,7 @@ class SimulatedDesktopCanvas(QWidget):
                 painter.setPen(accent)
                 painter.drawText(wr.right() - painter.fontMetrics().horizontalAdvance(disp_str) - 8, wr.top() + int(wr.height() * 0.38), disp_str)
             else:
-                # Numerical value
-                font_val = QFont("Segoe UI", max(9, int(item.font_size * scale_y * 1.05)), QFont.Bold)
+                font_val = QFont("Consolas", max(9, int(item.font_size * scale_y * 1.05)), QFont.Bold)
                 painter.setFont(font_val)
                 if item.show_shadow:
                     painter.setPen(QColor(0, 0, 0, 220))
@@ -501,18 +491,17 @@ class SimulatedDesktopCanvas(QWidget):
 
             # 3. Selection Highlight & 8-Point Resize Handles
             if is_sel:
-                pen_sel = QPen(QColor(56, 189, 248), 2)
+                pen_sel = QPen(QColor(COLORS["primary"]), 2)
                 painter.setPen(pen_sel)
                 painter.setBrush(Qt.NoBrush)
                 painter.drawRoundedRect(wr, 4, 4)
 
-                # Draw 8 resize handles
                 painter.setBrush(QColor(255, 255, 255))
-                painter.setPen(QPen(QColor(2, 132, 199), 1.5))
+                painter.setPen(QPen(QColor(COLORS["primary_dark"]), 1.5))
                 for h_rect in self._get_resize_handles(wr).values():
                     painter.drawRect(h_rect)
             elif is_hov:
-                painter.setPen(QPen(QColor(56, 189, 248, 160), 1, Qt.DashLine))
+                painter.setPen(QPen(QColor(COLORS["primary"]), 1, Qt.DashLine))
                 painter.setBrush(Qt.NoBrush)
                 painter.drawRoundedRect(wr, 4, 4)
 
@@ -528,7 +517,6 @@ class VisualDesktopEditor(QWidget):
 
     def __init__(self, config: OverlayConfig, parent=None):
         super().__init__(parent)
-        # Working copy for isolated edits
         self.working_config = copy.deepcopy(config)
         self.original_config = copy.deepcopy(config)
 
@@ -559,50 +547,49 @@ class VisualDesktopEditor(QWidget):
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(6)
 
         # --- Top Toolbar ---
         toolbar = QFrame()
-        toolbar.setStyleSheet("background-color: #0b111e; border: 1px solid #1e293b; border-radius: 6px; padding: 4px;")
+        toolbar.setStyleSheet(f"background-color: {COLORS['bg_surface']}; border: 1px solid {COLORS['border']}; border-radius: 4px; padding: 3px;")
         t_layout = QHBoxLayout(toolbar)
-        t_layout.setContentsMargins(8, 4, 8, 4)
-        t_layout.setSpacing(8)
+        t_layout.setContentsMargins(6, 3, 6, 3)
+        t_layout.setSpacing(6)
 
-        # Save & Apply (Prominent Green)
-        self.btn_save = QPushButton("💾 Save & Apply")
+        # Save & Apply
+        self.btn_save = QPushButton("Save & Apply")
         self.btn_save.setProperty("class", "PrimaryButton")
-        self.btn_save.setStyleSheet("background-color: #059669; font-weight: bold; min-height: 28px;")
         self.btn_save.clicked.connect(self._on_save_clicked)
         t_layout.addWidget(self.btn_save)
 
         # Cancel Button
-        self.btn_cancel = QPushButton("✕ Cancel")
+        self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setProperty("class", "SecondaryButton")
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
         t_layout.addWidget(self.btn_cancel)
 
-        t_layout.addSpacing(8)
+        t_layout.addSpacing(6)
 
         # Undo / Redo
-        self.btn_undo = QPushButton("↶ Undo")
+        self.btn_undo = QPushButton("Undo")
         self.btn_undo.setProperty("class", "SecondaryButton")
         self.btn_undo.clicked.connect(self._on_undo)
         t_layout.addWidget(self.btn_undo)
 
-        self.btn_redo = QPushButton("↷ Redo")
+        self.btn_redo = QPushButton("Redo")
         self.btn_redo.setProperty("class", "SecondaryButton")
         self.btn_redo.clicked.connect(self._on_redo)
         t_layout.addWidget(self.btn_redo)
 
-        t_layout.addSpacing(8)
+        t_layout.addSpacing(6)
 
         # Reset Controls
-        self.btn_reset_sel = QPushButton("↺ Reset Stat")
+        self.btn_reset_sel = QPushButton("Reset Stat")
         self.btn_reset_sel.setProperty("class", "SecondaryButton")
         self.btn_reset_sel.clicked.connect(self._on_reset_selected)
         t_layout.addWidget(self.btn_reset_sel)
 
-        self.btn_reset_all = QPushButton("↺ Reset All")
+        self.btn_reset_all = QPushButton("Reset All")
         self.btn_reset_all.setProperty("class", "SecondaryButton")
         self.btn_reset_all.clicked.connect(self._on_reset_all)
         t_layout.addWidget(self.btn_reset_all)
@@ -610,20 +597,23 @@ class VisualDesktopEditor(QWidget):
         t_layout.addStretch()
 
         # Desktop Live Capture Controls
-        self.btn_refresh_preview = QPushButton("⟳ Refresh Desktop")
+        self.btn_refresh_preview = QPushButton("Refresh Desktop")
         self.btn_refresh_preview.setProperty("class", "SecondaryButton")
-        self.btn_refresh_preview.setToolTip("Capture current live desktop and applications")
+        self.btn_refresh_preview.setToolTip("Capture current live desktop wallpaper and open windows")
         self.btn_refresh_preview.clicked.connect(self.capture_desktop)
         t_layout.addWidget(self.btn_refresh_preview)
 
-        self.chk_auto_capture = QCheckBox("Live Auto-Refresh")
+        self.chk_auto_capture = QCheckBox("Auto-Refresh")
         self.chk_auto_capture.setChecked(False)
         self.chk_auto_capture.setToolTip("Periodically re-captures desktop preview every 3.5s")
         self.chk_auto_capture.toggled.connect(self._on_auto_capture_toggled)
         t_layout.addWidget(self.chk_auto_capture)
 
         # Monitor Selector
-        t_layout.addWidget(QLabel("Monitor:"))
+        lbl_mon = QLabel("Monitor:")
+        lbl_mon.setStyleSheet(f"color: {COLORS['text_secondary']};")
+        t_layout.addWidget(lbl_mon)
+
         self.combo_screen = QComboBox()
         screens = QGuiApplication.screens()
         for idx, s in enumerate(screens):
@@ -665,7 +655,7 @@ class VisualDesktopEditor(QWidget):
         self.splitter.addWidget(prop_panel)
         self.splitter.setStretchFactor(0, 4)
         self.splitter.setStretchFactor(1, 1)
-        self.splitter.setSizes([850, 250])
+        self.splitter.setSizes([850, 240])
 
         main_layout.addWidget(self.splitter)
         self._update_undo_redo_ui()
@@ -684,7 +674,7 @@ class VisualDesktopEditor(QWidget):
     def _apply_splitter_proportions(self):
         w = self.width()
         if w > 400:
-            self.splitter.setSizes([int(w * 0.77), int(w * 0.23)])
+            self.splitter.setSizes([int(w * 0.78), int(w * 0.22)])
 
     def capture_desktop(self):
         """Captures actual desktop background and visible applications where supported."""
@@ -724,24 +714,24 @@ class VisualDesktopEditor(QWidget):
 
         panel = QFrame()
         panel.setProperty("class", "ContentCard")
-        panel.setMinimumWidth(230)
+        panel.setMinimumWidth(220)
         p_layout = QVBoxLayout(panel)
-        p_layout.setContentsMargins(10, 10, 10, 10)
-        p_layout.setSpacing(8)
+        p_layout.setContentsMargins(8, 8, 8, 8)
+        p_layout.setSpacing(6)
 
         p_title = QLabel("Widget Inspector")
-        p_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #38bdf8;")
+        p_title.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {COLORS['primary']};")
         p_layout.addWidget(p_title)
 
         self.lbl_selected_name = QLabel("Click any widget on desktop to inspect & edit")
-        self.lbl_selected_name.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        self.lbl_selected_name.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
         self.lbl_selected_name.setWordWrap(True)
         p_layout.addWidget(self.lbl_selected_name)
 
         self.form_widget = QWidget()
         grid = QGridLayout(self.form_widget)
         grid.setContentsMargins(0, 4, 0, 4)
-        grid.setSpacing(8)
+        grid.setSpacing(6)
 
         # Display Mode
         grid.addWidget(QLabel("Display Mode:"), 0, 0)
@@ -796,9 +786,9 @@ class VisualDesktopEditor(QWidget):
 
         # Quick Corner Snap Buttons
         grp_corners = QGroupBox("Corner Placement")
-        grp_corners.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; color: #94a3b8; border: 1px solid #1e293b; border-radius: 6px; margin-top: 6px; padding-top: 10px; }")
+        grp_corners.setStyleSheet(f"QGroupBox {{ font-size: 11px; font-weight: bold; color: {COLORS['text_secondary']}; border: 1px solid {COLORS['border']}; border-radius: 4px; margin-top: 6px; padding-top: 10px; }}")
         c_grid = QGridLayout(grp_corners)
-        c_grid.setSpacing(6)
+        c_grid.setSpacing(5)
 
         btn_tl = QPushButton("Top-Left")
         btn_tl.setProperty("class", "SecondaryButton")
@@ -826,10 +816,6 @@ class VisualDesktopEditor(QWidget):
         self.form_widget.setEnabled(False)
         scroll.setWidget(panel)
         return scroll
-        p_layout.addStretch()
-
-        self.form_widget.setEnabled(False)
-        return panel
 
     def _on_widget_selected(self, stat_id: str):
         if not stat_id or stat_id not in self.working_config.stats:
@@ -843,7 +829,6 @@ class VisualDesktopEditor(QWidget):
         self.lbl_selected_name.setText(f"Active: {item.name} ({item.category.capitalize()})")
         self.form_widget.setEnabled(True)
 
-        # Sync controls without triggering signals
         self.combo_mode.blockSignals(True)
         idx = self.combo_mode.findData(item.mode)
         if idx >= 0: self.combo_mode.setCurrentIndex(idx)

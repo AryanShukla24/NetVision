@@ -53,7 +53,7 @@ class KeyRecorderButton(QPushButton):
     def _start_recording(self):
         self.is_recording = True
         self.setText("Press shortcut keys...")
-        self.setStyleSheet("background-color: #0284c7; color: #ffffff; font-weight: bold;")
+        self.setStyleSheet(f"background-color: {COLORS['primary_dark']}; color: #ffffff; font-weight: bold;")
         self.setFocus()
 
     def keyPressEvent(self, event):
@@ -140,12 +140,12 @@ class SettingsPage(QWidget):
         if hasattr(self, "table_pos") and self.table_pos:
             viewport_w = self.table_pos.viewport().width()
             if viewport_w > 120:
-                c0 = int(viewport_w * 0.30)
-                c1 = int(viewport_w * 0.16)
-                c2 = int(viewport_w * 0.16)
-                c3 = int(viewport_w * 0.18)
-                c4 = int(viewport_w * 0.12)
-                c5 = max(50, viewport_w - c0 - c1 - c2 - c3 - c4 - 2)
+                c0 = max(120, int(viewport_w * 0.25))
+                c1 = max(75, int(viewport_w * 0.13))
+                c2 = max(75, int(viewport_w * 0.13))
+                c3 = max(150, int(viewport_w * 0.24))
+                c4 = max(85, int(viewport_w * 0.13))
+                c5 = max(55, viewport_w - c0 - c1 - c2 - c3 - c4 - 2)
                 self.table_pos.setColumnWidth(0, c0)
                 self.table_pos.setColumnWidth(1, c1)
                 self.table_pos.setColumnWidth(2, c2)
@@ -170,12 +170,12 @@ class SettingsPage(QWidget):
         header_layout.addLayout(title_box)
         header_layout.addStretch()
 
-        self.btn_restore_all = QPushButton("↺ Restore Defaults")
+        self.btn_restore_all = QPushButton("Restore Defaults")
         self.btn_restore_all.setProperty("class", "SecondaryButton")
         self.btn_restore_all.clicked.connect(self._on_restore_clicked)
         header_layout.addWidget(self.btn_restore_all)
 
-        self.btn_save_all = QPushButton("💾 Save All Changes")
+        self.btn_save_all = QPushButton("Save All Changes")
         self.btn_save_all.setProperty("class", "PrimaryButton")
         self.btn_save_all.clicked.connect(self._on_save_all_clicked)
         header_layout.addWidget(self.btn_save_all)
@@ -184,59 +184,34 @@ class SettingsPage(QWidget):
 
         # Tabbed Subsections
         self.tab_widget = QTabWidget()
-        self.tab_widget.setStyleSheet(f"""
-            QTabWidget::pane {{
-                border: 1px solid {COLORS['border']};
-                background: {COLORS['bg_dark']};
-                border-radius: 8px;
-                padding: 12px;
-            }}
-            QTabBar::tab {{
-                background: {COLORS['bg_surface']};
-                color: {COLORS['text_secondary']};
-                padding: 9px 18px;
-                margin-right: 4px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                font-weight: 600;
-                font-size: 12px;
-            }}
-            QTabBar::tab:selected {{
-                background: {COLORS['primary_dark']};
-                color: #ffffff;
-            }}
-            QTabBar::tab:hover:!selected {{
-                background: {COLORS['bg_surface_hover']};
-            }}
-        """)
 
         # 1. General Subsection
         self.tab_general = self._build_general_tab()
-        self.tab_widget.addTab(self.tab_general, "⚡ General")
+        self.tab_widget.addTab(self.tab_general, "General")
 
         # 2. Individual Statistics Subsection
         self.tab_stats = self._build_statistics_tab()
-        self.tab_widget.addTab(self.tab_stats, "📊 Individual Statistics")
+        self.tab_widget.addTab(self.tab_stats, "Individual Statistics")
 
         # 3. Positioning Subsection
         self.tab_positioning = self._build_positioning_tab()
-        self.tab_widget.addTab(self.tab_positioning, "📍 Positioning")
+        self.tab_widget.addTab(self.tab_positioning, "Positioning")
 
         # 4. Appearance Subsection
         self.tab_appearance = self._build_appearance_tab()
-        self.tab_widget.addTab(self.tab_appearance, "🎨 Appearance")
+        self.tab_widget.addTab(self.tab_appearance, "Appearance")
 
         # 5. Shortcuts Subsection
         self.tab_shortcuts = self._build_shortcuts_tab()
-        self.tab_widget.addTab(self.tab_shortcuts, "⌨ Shortcuts")
+        self.tab_widget.addTab(self.tab_shortcuts, "Shortcuts")
 
         # 6. Presets Subsection
         self.tab_presets = self._build_presets_tab()
-        self.tab_widget.addTab(self.tab_presets, "📁 Presets")
+        self.tab_widget.addTab(self.tab_presets, "Presets")
 
         # 7. Network Thresholds Subsection
         self.tab_thresholds = self._build_thresholds_tab()
-        self.tab_widget.addTab(self.tab_thresholds, "⚙ Thresholds & Locations")
+        self.tab_widget.addTab(self.tab_thresholds, "Thresholds & Locations")
 
         main_layout.addWidget(self.tab_widget)
         self.tab_widget.currentChanged.connect(lambda _: self._adjust_table_columns())
@@ -246,13 +221,13 @@ class SettingsPage(QWidget):
     def _build_general_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setSpacing(14)
+        layout.setSpacing(12)
 
         card = QFrame()
         card.setProperty("class", "ContentCard")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(18, 16, 18, 16)
-        c_layout.setSpacing(14)
+        c_layout.setContentsMargins(16, 14, 16, 14)
+        c_layout.setSpacing(12)
 
         # Status Banner
         self.banner_frame = QFrame()
@@ -261,17 +236,17 @@ class SettingsPage(QWidget):
 
         # Master Controls Bar
         ctrl_box = QHBoxLayout()
-        self.btn_start_overlay = QPushButton("▶ Start Overlay")
+        self.btn_start_overlay = QPushButton("Start Overlay")
         self.btn_start_overlay.setProperty("class", "PrimaryButton")
         self.btn_start_overlay.clicked.connect(self._on_start_overlay_clicked)
         ctrl_box.addWidget(self.btn_start_overlay)
 
-        self.btn_stop_overlay = QPushButton("⏹ Stop Overlay")
+        self.btn_stop_overlay = QPushButton("Stop Overlay")
         self.btn_stop_overlay.setProperty("class", "SecondaryButton")
         self.btn_stop_overlay.clicked.connect(self._on_stop_overlay_clicked)
         ctrl_box.addWidget(self.btn_stop_overlay)
 
-        self.btn_reset_overlay = QPushButton("↺ Reset Overlay Settings")
+        self.btn_reset_overlay = QPushButton("Reset Overlay Settings")
         self.btn_reset_overlay.setProperty("class", "SecondaryButton")
         self.btn_reset_overlay.clicked.connect(self._on_reset_overlay_settings)
         ctrl_box.addWidget(self.btn_reset_overlay)
@@ -281,7 +256,7 @@ class SettingsPage(QWidget):
 
         # Lock Positioning & Update Rate
         grid = QGridLayout()
-        grid.setSpacing(12)
+        grid.setSpacing(10)
 
         self.chk_master_enabled = QCheckBox("Enable Statistics Overlay System")
         self.chk_master_enabled.setChecked(self.config.master_enabled)
@@ -305,9 +280,9 @@ class SettingsPage(QWidget):
 
         # Quick Widget Visibility Checklist
         grp_vis = QGroupBox("Quick Widget Visibility Toggles")
-        grp_vis.setStyleSheet("QGroupBox { font-weight: bold; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; margin-top: 10px; padding-top: 14px; }")
+        grp_vis.setStyleSheet(f"QGroupBox {{ font-weight: bold; color: {COLORS['primary']}; border: 1px solid {COLORS['border_light']}; border-radius: 4px; margin-top: 8px; padding-top: 12px; }}")
         vis_layout = QGridLayout(grp_vis)
-        vis_layout.setSpacing(10)
+        vis_layout.setSpacing(8)
 
         self.vis_checkboxes: Dict[str, QCheckBox] = {}
         for idx, (stat_id, item) in enumerate(self.config.stats.items()):
@@ -325,21 +300,20 @@ class SettingsPage(QWidget):
         return widget
 
     def _update_status_banner(self):
-        # Clear previous layout if any
         if self.banner_frame.layout():
             QWidget().setLayout(self.banner_frame.layout())
 
         b_layout = QHBoxLayout(self.banner_frame)
-        b_layout.setContentsMargins(12, 10, 12, 10)
+        b_layout.setContentsMargins(12, 8, 12, 8)
 
         if self.config.master_enabled:
-            self.banner_frame.setStyleSheet("background-color: rgba(52, 211, 153, 0.15); border: 1px solid #34d399; border-radius: 6px;")
+            self.banner_frame.setStyleSheet(f"background-color: {COLORS['success_bg']}; border: 1px solid {COLORS['success']}; border-radius: 4px;")
             lbl = QLabel("● Statistics Overlay is ACTIVE — Floating widgets are visible on desktop.")
-            lbl.setStyleSheet("color: #34d399; font-weight: bold; font-size: 13px;")
+            lbl.setStyleSheet(f"color: {COLORS['success']}; font-weight: bold; font-size: 12px;")
         else:
-            self.banner_frame.setStyleSheet("background-color: rgba(148, 163, 184, 0.12); border: 1px solid #475569; border-radius: 6px;")
+            self.banner_frame.setStyleSheet(f"background-color: rgba(90, 107, 127, 0.12); border: 1px solid {COLORS['border_light']}; border-radius: 4px;")
             lbl = QLabel("○ Statistics Overlay is DISABLED — No widgets are rendered and telemetry is paused.")
-            lbl.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 13px;")
+            lbl.setStyleSheet(f"color: {COLORS['text_secondary']}; font-weight: bold; font-size: 12px;")
 
         b_layout.addWidget(lbl)
 
@@ -407,14 +381,13 @@ class SettingsPage(QWidget):
         card = QFrame()
         card.setProperty("class", "ContentCard")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(16, 14, 16, 14)
-        c_layout.setSpacing(12)
+        c_layout.setContentsMargins(14, 12, 14, 12)
+        c_layout.setSpacing(10)
 
-        # Header with Title and Search/Filter Controls
         top_bar = QHBoxLayout()
         title_box = QVBoxLayout()
         t_title = QLabel("Individual Statistic Customization")
-        t_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {COLORS['primary']};")
+        t_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
         desc = QLabel("Each metric operates as an independent floating window. Switch display mode directly, or click Configure for deep customization.")
         desc.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
         title_box.addWidget(t_title)
@@ -422,9 +395,8 @@ class SettingsPage(QWidget):
         top_bar.addLayout(title_box)
         top_bar.addStretch()
 
-        # Search box & category filter
         self.input_stat_search = QLineEdit()
-        self.input_stat_search.setPlaceholderText("🔍 Search metrics...")
+        self.input_stat_search.setPlaceholderText("Search metrics...")
         self.input_stat_search.setFixedWidth(160)
         self.input_stat_search.textChanged.connect(self._filter_stat_cards)
         top_bar.addWidget(self.input_stat_search)
@@ -443,18 +415,18 @@ class SettingsPage(QWidget):
         # Scroll Area for Card-Based Statistic Rows
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 1px solid #1e293b; border-radius: 6px; background-color: #0b111e; }")
+        scroll.setStyleSheet(f"QScrollArea {{ border: 1px solid {COLORS['border']}; border-radius: 4px; background-color: {COLORS['bg_surface']}; }}")
 
         self.stats_cards_container = QWidget()
         self.stats_cards_container.setStyleSheet("background-color: transparent;")
         self.stats_cards_layout = QVBoxLayout(self.stats_cards_container)
-        self.stats_cards_layout.setContentsMargins(10, 10, 10, 10)
-        self.stats_cards_layout.setSpacing(8)
+        self.stats_cards_layout.setContentsMargins(8, 8, 8, 8)
+        self.stats_cards_layout.setSpacing(6)
 
         scroll.setWidget(self.stats_cards_container)
         c_layout.addWidget(scroll)
 
-        # Hidden table for backward compatibility with any direct queries
+        # Hidden table for backward compatibility
         self.table_stats = QTableWidget()
         self.table_stats.setVisible(False)
 
@@ -463,7 +435,6 @@ class SettingsPage(QWidget):
         return widget
 
     def _populate_stats_table(self):
-        # Clear previous card widgets
         while self.stats_cards_layout.count():
             item = self.stats_cards_layout.takeAt(0)
             if item.widget():
@@ -471,53 +442,51 @@ class SettingsPage(QWidget):
 
         self.stat_card_widgets: Dict[str, QFrame] = {}
 
-        # Category color theme mapping
         cat_colors = {
-            "performance": ("#38bdf8", "rgba(56, 189, 248, 0.15)"),
-            "system": ("#a78bfa", "rgba(167, 139, 250, 0.15)"),
-            "network": ("#34d399", "rgba(52, 211, 153, 0.15)")
+            "performance": (COLORS["primary"], COLORS["primary_subtle"]),
+            "system": (COLORS["purple"], "rgba(176, 124, 250, 0.12)"),
+            "network": (COLORS["success"], COLORS["success_bg"])
         }
 
         for stat_id, item in self.config.stats.items():
             card = QFrame()
-            card.setStyleSheet("""
-                QFrame {
-                    background-color: #111a2e;
-                    border: 1px solid rgba(51, 65, 85, 0.6);
-                    border-radius: 6px;
-                    padding: 4px;
-                }
-                QFrame:hover {
-                    border-color: rgba(56, 189, 248, 0.5);
-                }
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {COLORS['bg_elevated']};
+                    border: 1px solid {COLORS['border']};
+                    border-radius: 4px;
+                    padding: 3px;
+                }}
+                QFrame:hover {{
+                    border-color: {COLORS['border_light']};
+                }}
             """)
             card_layout = QHBoxLayout(card)
-            card_layout.setContentsMargins(12, 8, 12, 8)
-            card_layout.setSpacing(14)
+            card_layout.setContentsMargins(10, 6, 10, 6)
+            card_layout.setSpacing(12)
 
             # 1. Category Pill
-            cat_fg, cat_bg = cat_colors.get(item.category.lower(), ("#38bdf8", "rgba(56, 189, 248, 0.15)"))
+            cat_fg, cat_bg = cat_colors.get(item.category.lower(), (COLORS["primary"], COLORS["primary_subtle"]))
             lbl_cat = QLabel(item.category.upper())
-            lbl_cat.setFixedWidth(78)
+            lbl_cat.setFixedWidth(75)
             lbl_cat.setAlignment(Qt.AlignCenter)
             lbl_cat.setStyleSheet(f"""
                 background-color: {cat_bg};
                 color: {cat_fg};
                 font-size: 10px;
                 font-weight: 800;
-                padding: 4px 6px;
-                border-radius: 4px;
+                padding: 3px 5px;
+                border-radius: 3px;
                 border: 1px solid {cat_fg}40;
             """)
             card_layout.addWidget(lbl_cat)
 
-            # 2. Statistic Name & Info
+            # 2. Statistic Name
             name_box = QVBoxLayout()
-            name_box.setSpacing(2)
+            name_box.setSpacing(1)
             lbl_name = QLabel(item.name)
-            lbl_name.setStyleSheet("font-size: 13px; font-weight: 700; color: #ffffff;")
+            lbl_name.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {COLORS['text_bright']};")
             name_box.addWidget(lbl_name)
-
             card_layout.addLayout(name_box, stretch=2)
 
             # 3. Display Mode Selector
@@ -537,20 +506,21 @@ class SettingsPage(QWidget):
             lbl_spec = QLabel(f"{item.font_size} pt  |  {dim_str}")
             lbl_spec.setAlignment(Qt.AlignCenter)
             lbl_spec.setFixedWidth(130)
-            lbl_spec.setStyleSheet("""
-                background-color: #090e17;
-                color: #94a3b8;
+            lbl_spec.setStyleSheet(f"""
+                background-color: {COLORS['bg_input']};
+                color: {COLORS['text_secondary']};
                 font-size: 11px;
-                font-weight: 600;
-                padding: 5px 8px;
-                border-radius: 4px;
-                border: 1px solid #1e293b;
+                font-family: 'Consolas', monospace;
+                font-weight: 500;
+                padding: 4px 6px;
+                border-radius: 3px;
+                border: 1px solid {COLORS['border']};
             """)
             card_layout.addWidget(lbl_spec)
 
-            # 5. Accent Color Swatch (Clickable to change color)
+            # 5. Accent Color Swatch
             lbl_color = QPushButton(f"  {item.color}  ")
-            lbl_color.setFixedWidth(90)
+            lbl_color.setFixedWidth(85)
             lbl_color.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {item.color};
@@ -558,8 +528,8 @@ class SettingsPage(QWidget):
                     font-weight: 800;
                     font-size: 11px;
                     border: none;
-                    border-radius: 4px;
-                    padding: 5px;
+                    border-radius: 3px;
+                    padding: 4px;
                 }}
                 QPushButton:hover {{
                     border: 2px solid #ffffff;
@@ -570,9 +540,9 @@ class SettingsPage(QWidget):
             card_layout.addWidget(lbl_color)
 
             # 6. Configure Button
-            btn_cfg = QPushButton("⚙ Configure")
+            btn_cfg = QPushButton("Configure")
             btn_cfg.setProperty("class", "SecondaryButton")
-            btn_cfg.setFixedWidth(100)
+            btn_cfg.setFixedWidth(90)
             btn_cfg.clicked.connect(lambda _, s=stat_id: self._on_open_stat_dialog(s))
             card_layout.addWidget(btn_cfg)
 
@@ -598,25 +568,14 @@ class SettingsPage(QWidget):
             card.setVisible(matches_search and matches_cat and matches_active)
 
     def _on_stat_mode_changed(self, stat_id: str, combo: QComboBox):
-        mode = combo.currentData()
         if stat_id in self.config.stats:
-            item = self.config.stats[stat_id]
-            item.mode = mode
-            item.enabled = (mode != DisplayMode.DONT_SHOW)
+            mode = combo.currentData()
+            self.config.stats[stat_id].mode = mode
+            self.config.stats[stat_id].enabled = (mode != DisplayMode.DONT_SHOW)
+            self.config.save()
+            self.overlay_config_changed.emit(self.config)
             if stat_id in self.vis_checkboxes:
-                self.vis_checkboxes[stat_id].setChecked(item.enabled)
-            self.config.save()
-            self.overlay_config_changed.emit(self.config)
-            self._populate_positioning_table()
-
-    def _on_stat_font_changed(self, stat_id: str, val: int):
-        if stat_id in self.config.stats:
-            self.config.stats[stat_id].font_size = val
-            self.config.save()
-            self.overlay_config_changed.emit(self.config)
-
-    def _on_pick_stat_color(self, stat_id: str, lbl_color: QLabel):
-        self._on_pick_stat_color_direct(stat_id)
+                self.vis_checkboxes[stat_id].setChecked(mode != DisplayMode.DONT_SHOW)
 
     def _on_pick_stat_color_direct(self, stat_id: str):
         if stat_id not in self.config.stats:
@@ -647,108 +606,89 @@ class SettingsPage(QWidget):
     def _build_positioning_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.pos_stack = QStackedWidget()
 
-        # Page 0: Positioning Overview & Launcher Card
+        # Page 0: Positioning Overview & Launcher Card with ScrollArea for clean visibility
+        scroll_overview = QScrollArea()
+        scroll_overview.setWidgetResizable(True)
+        scroll_overview.setFrameShape(QFrame.NoFrame)
+        scroll_overview.setStyleSheet("background: transparent;")
+
         page_overview = QWidget()
+        page_overview.setStyleSheet("background: transparent;")
         o_layout = QVBoxLayout(page_overview)
-        o_layout.setSpacing(12)
-        o_layout.setContentsMargins(14, 12, 14, 12)
+        o_layout.setSpacing(10)
+        o_layout.setContentsMargins(10, 8, 10, 8)
 
         card = QFrame()
         card.setProperty("class", "ContentCard")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(18, 16, 18, 16)
-        c_layout.setSpacing(14)
+        c_layout.setContentsMargins(14, 12, 14, 12)
+        c_layout.setSpacing(10)
 
-        # Title & Description
+        # Header with Title & Resolution
+        top_row = QHBoxLayout()
         t_box = QVBoxLayout()
-        title = QLabel("Independent Desktop Coordinates & Visual Layout")
-        title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {COLORS['primary']};")
-        subtitle = QLabel("Every statistic is an independent floating transparent window. Drag, resize, and align widgets visually inside the Visual Overlay Editor.")
+        title = QLabel("Desktop Widget Coordinates & Positioning")
+        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
+        subtitle = QLabel("Every statistic is an independent floating transparent window. Align via the Visual Overlay Editor or adjust precise coordinates below.")
         subtitle.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 12px;")
         t_box.addWidget(title)
         t_box.addWidget(subtitle)
-        c_layout.addLayout(t_box)
+        top_row.addLayout(t_box)
+        top_row.addStretch()
 
-        # Screen & Status Information Banner
-        info_frame = QFrame()
-        info_frame.setStyleSheet("background-color: #090e17; border: 1px solid #1e293b; border-radius: 8px; padding: 10px;")
-        info_layout = QHBoxLayout(info_frame)
-
-        # Detect resolution
         primary = QGuiApplication.primaryScreen()
         res_str = f"{primary.size().width()} × {primary.size().height()} px" if primary else "1366 × 768 px"
+        lbl_res = QLabel(f"Display: {res_str}")
+        lbl_res.setStyleSheet(f"font-weight: 600; color: {COLORS['text_secondary']}; font-size: 11px; padding: 4px 8px; background-color: {COLORS['bg_input']}; border-radius: 3px; border: 1px solid {COLORS['border']};")
+        top_row.addWidget(lbl_res)
+        c_layout.addLayout(top_row)
 
-        lbl_res = QLabel(f"🖥 Primary Display: {res_str}")
-        lbl_res.setStyleSheet("font-weight: 700; color: #38bdf8; font-size: 12px;")
-        info_layout.addWidget(lbl_res)
-
-        info_layout.addSpacing(20)
-        lbl_lock = QLabel("🔒 Desktop Widgets: Locked (Safe during games/apps)")
-        lbl_lock.setStyleSheet("font-weight: 600; color: #34d399; font-size: 12px;")
-        info_layout.addWidget(lbl_lock)
-
-        info_layout.addStretch()
-        c_layout.addWidget(info_frame)
-
-        # Prominent "Open Visual Overlay Editor" CTA
-        launch_card = QFrame()
-        launch_card.setStyleSheet("""
-            QFrame {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(2, 132, 199, 0.20), stop:1 rgba(37, 99, 235, 0.10));
-                border: 2px solid #0284c7;
-                border-radius: 8px;
-                padding: 16px;
-            }
+        # High-efficiency Visual Editor Launch Banner
+        launch_banner = QFrame()
+        launch_banner.setStyleSheet(f"""
+            QFrame {{
+                background-color: {COLORS['bg_surface']};
+                border: 1px solid {COLORS['border_light']};
+                border-radius: 4px;
+                padding: 10px;
+            }}
         """)
-        l_layout = QHBoxLayout(launch_card)
+        l_layout = QHBoxLayout(launch_banner)
+        l_layout.setContentsMargins(10, 6, 10, 6)
 
         l_text_box = QVBoxLayout()
         l_title = QLabel("Interactive Visual Overlay Workspace")
-        l_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #ffffff;")
-        l_desc = QLabel("Simulates your actual desktop resolution with live snapping guides, 8-point resize handles, and instant preview.")
-        l_desc.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        l_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['text_bright']};")
+        l_desc = QLabel("Displays live desktop preview with edge snapping, 8-point resize handles, and real-time positioning.")
+        l_desc.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
         l_text_box.addWidget(l_title)
         l_text_box.addWidget(l_desc)
         l_layout.addLayout(l_text_box)
         l_layout.addStretch()
 
-        self.btn_open_visual_editor = QPushButton("📐 Open Visual Overlay Editor")
-        self.btn_open_visual_editor.setStyleSheet("""
-            QPushButton {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284c7, stop:1 #2563eb);
-                color: #ffffff;
-                font-size: 13px;
-                font-weight: 800;
-                border: none;
-                border-radius: 6px;
-                padding: 10px 22px;
-                min-height: 36px;
-            }
-            QPushButton:hover {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0ea5e9, stop:1 #3b82f6);
-            }
-        """)
+        self.btn_open_visual_editor = QPushButton("Open Visual Overlay Editor")
+        self.btn_open_visual_editor.setProperty("class", "PrimaryButton")
         self.btn_open_visual_editor.clicked.connect(self._open_visual_editor)
         l_layout.addWidget(self.btn_open_visual_editor)
-        c_layout.addWidget(launch_card)
+        c_layout.addWidget(launch_banner)
 
         # Quick Layout Preset Buttons Bar
         quick_bar = QHBoxLayout()
-        lbl_quick = QLabel("Quick Desktop Presets:")
-        lbl_quick.setStyleSheet("font-weight: 700; color: #f8fafc; font-size: 12px;")
+        lbl_quick = QLabel("Quick Presets:")
+        lbl_quick.setStyleSheet(f"font-weight: 600; color: {COLORS['text_primary']}; font-size: 11px;")
         quick_bar.addWidget(lbl_quick)
 
         for label, corner in [
-            ("↖ Top-Left", "tl"),
-            ("↗ Top-Right", "tr"),
-            ("⊞ 4-Corners HUD", "hud"),
-            ("↙ Bottom-Left", "bl"),
-            ("↘ Bottom-Right", "br")
+            ("Top-Left", "tl"),
+            ("Top-Right", "tr"),
+            ("4-Corners HUD", "hud"),
+            ("Bottom-Left", "bl"),
+            ("Bottom-Right", "br")
         ]:
             btn = QPushButton(label)
             btn.setProperty("class", "SecondaryButton")
@@ -757,13 +697,13 @@ class SettingsPage(QWidget):
 
         quick_bar.addStretch()
 
-        btn_reset_all_pos = QPushButton("↺ Reset All Coordinates")
+        btn_reset_all_pos = QPushButton("Reset All Coordinates")
         btn_reset_all_pos.setProperty("class", "SecondaryButton")
         btn_reset_all_pos.clicked.connect(self._on_reset_all_positions)
         quick_bar.addWidget(btn_reset_all_pos)
         c_layout.addLayout(quick_bar)
 
-        # Coordinates Reference Table
+        # Coordinates Reference Table with Guaranteed Height for all 11 rows
         self.table_pos = QTableWidget()
         self.table_pos.setColumnCount(6)
         self.table_pos.setHorizontalHeaderLabels([
@@ -773,22 +713,15 @@ class SettingsPage(QWidget):
         self.table_pos.verticalHeader().setDefaultSectionSize(44)
         self.table_pos.setAlternatingRowColors(False)
         self.table_pos.setShowGrid(True)
-        self.table_pos.setStyleSheet(f"""
-            QTableWidget {{
-                gridline-color: #1e293b;
-                background-color: #0b111e;
-                border: 1px solid #1e293b;
-                border-radius: 6px;
-            }}
-            QTableWidget::item {{
-                padding: 4px 8px;
-            }}
-        """)
+        self.table_pos.setMinimumHeight(520)
+        self.table_pos.horizontalHeader().setStretchLastSection(True)
 
         self._populate_positioning_table()
         c_layout.addWidget(self.table_pos)
         o_layout.addWidget(card)
-        self.pos_stack.addWidget(page_overview)
+
+        scroll_overview.setWidget(page_overview)
+        self.pos_stack.addWidget(scroll_overview)
 
         # Page 1: Embedded Visual Desktop Editor
         self.visual_editor = VisualDesktopEditor(self.config, self)
@@ -800,7 +733,6 @@ class SettingsPage(QWidget):
         return widget
 
     def _open_visual_editor(self):
-        # Refresh working copy and initialize history
         self.visual_editor.working_config = copy.deepcopy(self.config)
         self.visual_editor.original_config = copy.deepcopy(self.config)
         self.visual_editor.canvas.set_config(self.visual_editor.working_config)
@@ -808,6 +740,8 @@ class SettingsPage(QWidget):
         self.visual_editor._history_idx = 0
         self.visual_editor._update_undo_redo_ui()
         self.pos_stack.setCurrentIndex(1)
+        self.visual_editor.capture_desktop()
+        self.visual_editor._apply_splitter_proportions()
 
     def _on_visual_editor_saved(self, new_config: OverlayConfig):
         self.config = new_config
@@ -859,7 +793,6 @@ class SettingsPage(QWidget):
                 item.y = max(24, cur_y - h)
                 cur_y -= (h + 12)
         elif corner == "hud":
-            # Distribute among 4 corners
             corners = [
                 (24, 24),
                 (max(24, screen_w - 220), 24),
@@ -891,7 +824,7 @@ class SettingsPage(QWidget):
             spin_x = QSpinBox()
             spin_x.setRange(0, 7680)
             spin_x.setValue(item.x)
-            spin_x.setMinimumHeight(30)
+            spin_x.setMinimumHeight(28)
             spin_x.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, x=v))
             self.table_pos.setCellWidget(row, 1, self._wrap_cell_widget(spin_x, Qt.AlignCenter))
 
@@ -899,7 +832,7 @@ class SettingsPage(QWidget):
             spin_y = QSpinBox()
             spin_y.setRange(0, 4320)
             spin_y.setValue(item.y)
-            spin_y.setMinimumHeight(30)
+            spin_y.setMinimumHeight(28)
             spin_y.valueChanged.connect(lambda v, s=stat_id: self._on_coord_changed(s, y=v))
             self.table_pos.setCellWidget(row, 2, self._wrap_cell_widget(spin_y, Qt.AlignCenter))
 
@@ -910,7 +843,7 @@ class SettingsPage(QWidget):
             combo_corner.addItem("Top-Right", (1180, 24))
             combo_corner.addItem("Bottom-Left", (24, 700))
             combo_corner.addItem("Bottom-Right", (1180, 700))
-            combo_corner.setMinimumHeight(30)
+            combo_corner.setMinimumHeight(28)
             combo_corner.currentIndexChanged.connect(
                 lambda idx, s=stat_id, c=combo_corner, sx=spin_x, sy=spin_y: self._on_snap_corner(s, c, sx, sy)
             )
@@ -919,7 +852,7 @@ class SettingsPage(QWidget):
             # 4: Reset single button
             btn_res = QPushButton("Reset Pos")
             btn_res.setProperty("class", "SecondaryButton")
-            btn_res.setMinimumHeight(30)
+            btn_res.setMinimumHeight(28)
             btn_res.clicked.connect(lambda _, s=stat_id, sx=spin_x, sy=spin_y: self._on_reset_single_pos(s, sx, sy))
             self.table_pos.setCellWidget(row, 4, self._wrap_cell_widget(btn_res, Qt.AlignCenter))
 
@@ -979,15 +912,15 @@ class SettingsPage(QWidget):
         card = QFrame()
         card.setProperty("class", "ContentCard")
         c_layout = QVBoxLayout(card)
-        c_layout.setContentsMargins(18, 16, 18, 16)
-        c_layout.setSpacing(14)
+        c_layout.setContentsMargins(16, 14, 16, 14)
+        c_layout.setSpacing(12)
 
         t_title = QLabel("Floating Widget Appearance & Transparency")
         t_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
         c_layout.addWidget(t_title)
 
         grid = QGridLayout()
-        grid.setSpacing(14)
+        grid.setSpacing(12)
 
         # Transparent Background Master
         self.chk_transparent = QCheckBox("Genuinely Transparent Background (No heavy boxes or borders)")
@@ -1076,7 +1009,7 @@ class SettingsPage(QWidget):
         top_bar.addLayout(title_box)
         top_bar.addStretch()
 
-        self.btn_unassign_all = QPushButton("↺ Unassign All Shortcuts")
+        self.btn_unassign_all = QPushButton("Unassign All Shortcuts")
         self.btn_unassign_all.setProperty("class", "SecondaryButton")
         self.btn_unassign_all.clicked.connect(self._on_unassign_all_shortcuts)
         top_bar.addWidget(self.btn_unassign_all)
@@ -1106,17 +1039,6 @@ class SettingsPage(QWidget):
         self.table_shortcuts.verticalHeader().setDefaultSectionSize(44)
         self.table_shortcuts.setAlternatingRowColors(False)
         self.table_shortcuts.setShowGrid(True)
-        self.table_shortcuts.setStyleSheet(f"""
-            QTableWidget {{
-                gridline-color: #1e293b;
-                background-color: #0b111e;
-                border: 1px solid #1e293b;
-                border-radius: 6px;
-            }}
-            QTableWidget::item {{
-                padding: 4px 8px;
-            }}
-        """)
 
         self._populate_shortcuts_table()
         c_layout.addWidget(self.table_shortcuts)
@@ -1143,14 +1065,14 @@ class SettingsPage(QWidget):
             sc_text = item.shortcut if item.shortcut else "(Unassigned)"
             lbl_badge = QLabel(sc_text)
             lbl_badge.setAlignment(Qt.AlignCenter)
-            color_style = "color: #38bdf8; font-weight: bold;" if item.shortcut else "color: #64748b;"
-            lbl_badge.setStyleSheet(f"background-color: #1e293b; padding: 4px 8px; border-radius: 4px; {color_style}")
+            color_style = f"color: {COLORS['primary']}; font-weight: bold;" if item.shortcut else f"color: {COLORS['text_muted']};"
+            lbl_badge.setStyleSheet(f"background-color: {COLORS['bg_input']}; padding: 4px 8px; border-radius: 3px; border: 1px solid {COLORS['border']}; {color_style}")
             lbl_badge.setMinimumHeight(28)
             self.table_shortcuts.setCellWidget(row, 1, self._wrap_cell_widget(lbl_badge, Qt.AlignCenter))
 
             # 2: Key Recorder Button
             btn_rec = KeyRecorderButton(item.shortcut)
-            btn_rec.setMinimumHeight(30)
+            btn_rec.setMinimumHeight(28)
             btn_rec.shortcut_recorded.connect(
                 lambda sc, s=stat_id, l=lbl_badge: self._on_shortcut_recorded(s, sc, l)
             )
@@ -1159,7 +1081,7 @@ class SettingsPage(QWidget):
             # 3: Clear Button
             btn_clear = QPushButton("Clear")
             btn_clear.setProperty("class", "SecondaryButton")
-            btn_clear.setMinimumHeight(30)
+            btn_clear.setMinimumHeight(28)
             btn_clear.clicked.connect(
                 lambda _, s=stat_id, b=btn_rec, l=lbl_badge: self._on_shortcut_cleared(s, b, l)
             )
@@ -1167,7 +1089,6 @@ class SettingsPage(QWidget):
 
     def _on_master_shortcut_recorded(self, shortcut_str: str):
         shortcut_str = shortcut_str.strip()
-        # Conflict check against metric shortcuts
         for s_id, item in self.config.stats.items():
             if item.shortcut.strip().upper() == shortcut_str.upper():
                 self.show_toast(f"Conflict: Shortcut '{shortcut_str}' is already assigned to {item.name}.", "error")
@@ -1199,7 +1120,7 @@ class SettingsPage(QWidget):
         if stat_id in self.config.stats:
             self.config.stats[stat_id].shortcut = shortcut_str
             lbl_badge.setText(shortcut_str if shortcut_str else "(Unassigned)")
-            lbl_badge.setStyleSheet("color: #38bdf8; font-weight: bold; background-color: #1e293b; padding: 4px 8px; border-radius: 4px;")
+            lbl_badge.setStyleSheet(f"color: {COLORS['primary']}; font-weight: bold; background-color: {COLORS['bg_input']}; padding: 4px 8px; border-radius: 3px; border: 1px solid {COLORS['border']};")
             self.config.save()
             self.shortcut_updated.emit(stat_id, shortcut_str)
 
@@ -1208,7 +1129,7 @@ class SettingsPage(QWidget):
             self.config.stats[stat_id].shortcut = ""
             btn_rec.setText("(None)")
             lbl_badge.setText("(Unassigned)")
-            lbl_badge.setStyleSheet("color: #64748b; background-color: #1e293b; padding: 4px 8px; border-radius: 4px;")
+            lbl_badge.setStyleSheet(f"color: {COLORS['text_muted']}; background-color: {COLORS['bg_input']}; padding: 4px 8px; border-radius: 3px; border: 1px solid {COLORS['border']};")
             self.config.save()
             self.shortcut_updated.emit(stat_id, "")
 
@@ -1248,29 +1169,29 @@ class SettingsPage(QWidget):
         actions_box = QVBoxLayout()
         actions_box.setSpacing(8)
 
-        self.btn_apply_preset = QPushButton("✔ Apply Selected Preset")
+        self.btn_apply_preset = QPushButton("Apply Selected Preset")
         self.btn_apply_preset.setProperty("class", "PrimaryButton")
         self.btn_apply_preset.clicked.connect(self._on_apply_preset)
         actions_box.addWidget(self.btn_apply_preset)
 
-        self.btn_save_custom_preset = QPushButton("💾 Save Current as Preset...")
+        self.btn_save_custom_preset = QPushButton("Save Current as Preset...")
         self.btn_save_custom_preset.setProperty("class", "SecondaryButton")
         self.btn_save_custom_preset.clicked.connect(self._on_save_custom_preset)
         actions_box.addWidget(self.btn_save_custom_preset)
 
-        self.btn_delete_preset = QPushButton("🗑 Delete Custom Preset")
+        self.btn_delete_preset = QPushButton("Delete Custom Preset")
         self.btn_delete_preset.setProperty("class", "SecondaryButton")
         self.btn_delete_preset.clicked.connect(self._on_delete_custom_preset)
         actions_box.addWidget(self.btn_delete_preset)
 
         actions_box.addSpacing(16)
 
-        btn_exp = QPushButton("📤 Export to JSON...")
+        btn_exp = QPushButton("Export to JSON...")
         btn_exp.setProperty("class", "SecondaryButton")
         btn_exp.clicked.connect(self._on_export_presets_json)
         actions_box.addWidget(btn_exp)
 
-        btn_imp = QPushButton("📥 Import from JSON...")
+        btn_imp = QPushButton("Import from JSON...")
         btn_imp.setProperty("class", "SecondaryButton")
         btn_imp.clicked.connect(self._on_import_presets_json)
         actions_box.addWidget(btn_imp)
@@ -1285,14 +1206,14 @@ class SettingsPage(QWidget):
     def _refresh_presets_list(self):
         self.list_presets.clear()
         for p in ["Minimal", "Performance", "Detailed"]:
-            self.list_presets.addItem(f"★ {p} (Built-in)")
+            self.list_presets.addItem(f"{p} (Built-in)")
         for cp in self.config.custom_presets.keys():
-            self.list_presets.addItem(f"👤 {cp} (Custom)")
+            self.list_presets.addItem(f"{cp} (Custom)")
 
     def _on_apply_preset(self):
         sel = self.list_presets.currentItem()
         if not sel: return
-        name = sel.text().split(" ")[1]
+        name = sel.text().split(" ")[0]
         self.config.apply_preset(name)
         self.config.save()
         self._populate_stats_table()
@@ -1310,9 +1231,9 @@ class SettingsPage(QWidget):
 
     def _on_delete_custom_preset(self):
         sel = self.list_presets.currentItem()
-        if not sel or "Built-in" in sel.text():
+        if not sel or "(Built-in)" in sel.text():
             return
-        name = sel.text().split(" ")[1]
+        name = sel.text().split(" ")[0]
         if self.config.delete_custom_preset(name):
             self._refresh_presets_list()
             self.show_toast(f"Preset '{name}' removed.", "info")
@@ -1349,7 +1270,7 @@ class SettingsPage(QWidget):
     def _build_thresholds_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setSpacing(14)
+        layout.setSpacing(12)
 
         # General Monitoring Defaults
         gen_card = QFrame()
@@ -1362,7 +1283,7 @@ class SettingsPage(QWidget):
         g_layout.addWidget(g_title)
 
         g_grid = QGridLayout()
-        g_grid.setSpacing(12)
+        g_grid.setSpacing(10)
 
         lbl_target = QLabel("Default Ping Target Host:")
         self.input_default_target = QLineEdit("8.8.8.8")
@@ -1391,7 +1312,7 @@ class SettingsPage(QWidget):
         t_layout.addWidget(t_title)
 
         grid = QGridLayout()
-        grid.setSpacing(12)
+        grid.setSpacing(10)
 
         # Signal Thresholds
         grid.addWidget(QLabel("Wi-Fi Signal Excellent (>= %):"), 0, 0)
@@ -1483,7 +1404,7 @@ class SettingsPage(QWidget):
         self.input_new_loc.setPlaceholderText("Enter custom location label (e.g. CS Lab 3, Library 2nd Floor, Room 402)...")
         add_bar.addWidget(self.input_new_loc)
 
-        self.btn_add_loc = QPushButton("+ Add Location")
+        self.btn_add_loc = QPushButton("Add Location")
         self.btn_add_loc.setProperty("class", "SecondaryButton")
         self.btn_add_loc.clicked.connect(self._on_add_loc_clicked)
         add_bar.addWidget(self.btn_add_loc)
@@ -1604,9 +1525,8 @@ class SettingsPage(QWidget):
             self.show_toast("Validation Error: Download Speed must be Excellent > Good > Fair.", "error")
             return
 
-        # Visual saving feedback and button state protection
         self.btn_save_all.setEnabled(False)
-        self.btn_save_all.setText("💾 Saving...")
+        self.btn_save_all.setText("Saving...")
 
         target_host = self.input_default_target.text().strip() or "8.8.8.8"
         interval = self.spin_interval.value()
@@ -1629,5 +1549,5 @@ class SettingsPage(QWidget):
         self.request_save_settings.emit(payload)
 
         self.show_toast("Settings saved successfully!", "success")
-        self.btn_save_all.setText("💾 Save All Changes")
+        self.btn_save_all.setText("Save All Changes")
         self.btn_save_all.setEnabled(True)

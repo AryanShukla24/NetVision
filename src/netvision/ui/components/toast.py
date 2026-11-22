@@ -39,15 +39,15 @@ class ToastNotification(QWidget):
 
     def _build_ui(self):
         self.main_layout = QHBoxLayout(self)
-        self.main_layout.setContentsMargins(18, 10, 18, 10)
-        self.main_layout.setSpacing(12)
+        self.main_layout.setContentsMargins(16, 8, 16, 8)
+        self.main_layout.setSpacing(10)
 
         self.lbl_icon = QLabel("✔")
-        self.lbl_icon.setStyleSheet("font-size: 15px; font-weight: bold;")
+        self.lbl_icon.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {COLORS['success']};")
         self.main_layout.addWidget(self.lbl_icon)
 
         self.lbl_msg = QLabel("Settings saved successfully")
-        self.lbl_msg.setStyleSheet("font-size: 13px; font-weight: 600; color: #f8fafc;")
+        self.lbl_msg.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {COLORS['text_bright']};")
         self.main_layout.addWidget(self.lbl_msg)
 
     def show_toast(self, message: str, toast_type: str = "success", duration_ms: int = 3500):
@@ -55,27 +55,27 @@ class ToastNotification(QWidget):
 
         if toast_type == "success":
             self.lbl_icon.setText("✔")
-            self.lbl_icon.setStyleSheet("color: #34d399; font-size: 16px; font-weight: 900;")
-            self.setStyleSheet("""
-                background-color: #0b1426;
-                border: 1px solid #34d399;
-                border-radius: 8px;
+            self.lbl_icon.setStyleSheet(f"color: {COLORS['success']}; font-size: 14px; font-weight: 900;")
+            self.setStyleSheet(f"""
+                background-color: {COLORS['bg_elevated']};
+                border: 1px solid {COLORS['success']};
+                border-radius: 4px;
             """)
         elif toast_type == "error":
             self.lbl_icon.setText("⚠")
-            self.lbl_icon.setStyleSheet("color: #f87171; font-size: 16px; font-weight: 900;")
-            self.setStyleSheet("""
-                background-color: #1a0f1a;
-                border: 1px solid #ef4444;
-                border-radius: 8px;
+            self.lbl_icon.setStyleSheet(f"color: {COLORS['danger']}; font-size: 14px; font-weight: 900;")
+            self.setStyleSheet(f"""
+                background-color: {COLORS['bg_elevated']};
+                border: 1px solid {COLORS['danger']};
+                border-radius: 4px;
             """)
         else: # info
             self.lbl_icon.setText("ℹ")
-            self.lbl_icon.setStyleSheet("color: #38bdf8; font-size: 16px; font-weight: 900;")
-            self.setStyleSheet("""
-                background-color: #091322;
-                border: 1px solid #38bdf8;
-                border-radius: 8px;
+            self.lbl_icon.setStyleSheet(f"color: {COLORS['primary']}; font-size: 14px; font-weight: 900;")
+            self.setStyleSheet(f"""
+                background-color: {COLORS['bg_elevated']};
+                border: 1px solid {COLORS['primary']};
+                border-radius: 4px;
             """)
 
         self.adjustSize()

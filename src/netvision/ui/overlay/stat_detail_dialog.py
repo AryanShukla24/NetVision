@@ -33,20 +33,20 @@ class StatDetailDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {COLORS['bg_dark']};
-                color: #f8fafc;
+                color: {COLORS['text_primary']};
             }}
             QGroupBox {{
                 font-weight: 700;
-                font-size: 12px;
-                color: #38bdf8;
-                border: 1px solid rgba(51, 65, 85, 0.7);
-                border-radius: 8px;
+                font-size: 11px;
+                color: {COLORS['primary']};
+                border: 1px solid {COLORS['border_light']};
+                border-radius: 4px;
                 margin-top: 10px;
-                padding-top: 14px;
+                padding-top: 12px;
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
-                left: 12px;
+                left: 10px;
                 padding: 0 4px;
             }}
         """)
@@ -54,31 +54,31 @@ class StatDetailDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 18, 20, 18)
-        layout.setSpacing(14)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
 
         # Header with Category Pill and Name
         header = QHBoxLayout()
         cat_badge = QLabel(self.working_item.category.upper())
-        cat_badge.setStyleSheet("""
-            background-color: rgba(2, 132, 199, 0.25);
-            color: #38bdf8;
-            font-size: 11px;
+        cat_badge.setStyleSheet(f"""
+            background-color: {COLORS['primary_subtle']};
+            color: {COLORS['primary']};
+            font-size: 10px;
             font-weight: 800;
             padding: 3px 8px;
-            border-radius: 4px;
-            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 3px;
+            border: 1px solid {COLORS['primary']}50;
         """)
         header.addWidget(cat_badge)
 
         name_lbl = QLabel(self.working_item.name)
-        name_lbl.setStyleSheet("font-size: 16px; font-weight: 800; color: #ffffff;")
+        name_lbl.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {COLORS['text_bright']};")
         header.addWidget(name_lbl)
         header.addStretch()
 
         self.chk_enabled = QCheckBox("Statistic Active")
         self.chk_enabled.setChecked(self.working_item.enabled and self.working_item.mode != DisplayMode.DONT_SHOW)
-        self.chk_enabled.setStyleSheet("font-weight: 600; color: #34d399;")
+        self.chk_enabled.setStyleSheet(f"font-weight: 600; color: {COLORS['success']};")
         self.chk_enabled.toggled.connect(self._on_enabled_toggled)
         header.addWidget(self.chk_enabled)
 
@@ -87,7 +87,7 @@ class StatDetailDialog(QDialog):
         # 1. Display Mode & Typography Group
         grp_display = QGroupBox("Display Mode & Typography")
         d_layout = QGridLayout(grp_display)
-        d_layout.setSpacing(12)
+        d_layout.setSpacing(10)
 
         d_layout.addWidget(QLabel("Display Mode:"), 0, 0)
         self.combo_mode = QComboBox()
@@ -110,7 +110,7 @@ class StatDetailDialog(QDialog):
         color_box = QHBoxLayout()
         self.lbl_color_swatch = QLabel(f" {self.working_item.color} ")
         self.lbl_color_swatch.setAlignment(Qt.AlignCenter)
-        self.lbl_color_swatch.setStyleSheet(f"background-color: {self.working_item.color}; color: #000; font-weight: bold; border-radius: 4px; padding: 3px 8px;")
+        self.lbl_color_swatch.setStyleSheet(f"background-color: {self.working_item.color}; color: #000; font-weight: bold; border-radius: 3px; padding: 3px 8px;")
         color_box.addWidget(self.lbl_color_swatch)
 
         self.btn_pick_color = QPushButton("Choose Color...")
@@ -124,7 +124,7 @@ class StatDetailDialog(QDialog):
         # 2. Dimensions & Desktop Coordinates Group
         grp_geom = QGroupBox("Dimensions & Screen Position")
         g_layout = QGridLayout(grp_geom)
-        g_layout.setSpacing(12)
+        g_layout.setSpacing(10)
 
         # Numbers dimensions
         g_layout.addWidget(QLabel("Widget Width (Numbers):"), 0, 0)
@@ -185,7 +185,7 @@ class StatDetailDialog(QDialog):
         # 3. Styling, Opacity & Transparency Group
         grp_style = QGroupBox("Appearance & Transparency")
         s_layout = QGridLayout(grp_style)
-        s_layout.setSpacing(12)
+        s_layout.setSpacing(10)
 
         self.chk_subtle_bg = QCheckBox("Show Subtle Tinted Background")
         self.chk_subtle_bg.setChecked(self.working_item.show_subtle_bg)
@@ -214,7 +214,7 @@ class StatDetailDialog(QDialog):
 
         # Bottom Action Bar
         btn_bar = QHBoxLayout()
-        self.btn_reset = QPushButton("↺ Reset to Default")
+        self.btn_reset = QPushButton("Reset to Default")
         self.btn_reset.setProperty("class", "SecondaryButton")
         self.btn_reset.clicked.connect(self._on_reset_to_default)
         btn_bar.addWidget(self.btn_reset)
@@ -226,7 +226,7 @@ class StatDetailDialog(QDialog):
         self.btn_cancel.clicked.connect(self.reject)
         btn_bar.addWidget(self.btn_cancel)
 
-        self.btn_apply = QPushButton("✔ Save & Apply")
+        self.btn_apply = QPushButton("Save & Apply")
         self.btn_apply.setProperty("class", "PrimaryButton")
         self.btn_apply.setDefault(True)
         self.btn_apply.clicked.connect(self._on_apply_clicked)
@@ -257,7 +257,7 @@ class StatDetailDialog(QDialog):
             self.working_item.color = c.name()
             self.lbl_color_swatch.setText(f" {self.working_item.color} ")
             self.lbl_color_swatch.setStyleSheet(
-                f"background-color: {self.working_item.color}; color: #000; font-weight: bold; border-radius: 4px; padding: 3px 8px;"
+                f"background-color: {self.working_item.color}; color: #000; font-weight: bold; border-radius: 3px; padding: 3px 8px;"
             )
 
     def _snap_coords(self, x: int, y: int):
@@ -285,7 +285,7 @@ class StatDetailDialog(QDialog):
             self.working_item.color = def_item.color
             self.lbl_color_swatch.setText(f" {def_item.color} ")
             self.lbl_color_swatch.setStyleSheet(
-                f"background-color: {def_item.color}; color: #000; font-weight: bold; border-radius: 4px; padding: 3px 8px;"
+                f"background-color: {def_item.color}; color: #000; font-weight: bold; border-radius: 3px; padding: 3px 8px;"
             )
 
     def _on_apply_clicked(self):

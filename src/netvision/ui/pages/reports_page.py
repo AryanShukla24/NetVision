@@ -47,7 +47,7 @@ class ReportsPage(QWidget):
         header_layout.addLayout(title_box)
         header_layout.addStretch()
 
-        self.btn_open_folder = QPushButton("📁  Open Reports Folder")
+        self.btn_open_folder = QPushButton("Open Reports Folder")
         self.btn_open_folder.setProperty("class", "SecondaryButton")
         self.btn_open_folder.clicked.connect(self._open_reports_folder)
         header_layout.addWidget(self.btn_open_folder)
@@ -62,7 +62,7 @@ class ReportsPage(QWidget):
 
         info_box = QVBoxLayout()
         lbl_card_title = QLabel("Export Network Diagnostic Reports")
-        lbl_card_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #f8fafc;")
+        lbl_card_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['text_bright']};")
         lbl_card_sub = QLabel("Includes active link metadata, throughput measurements, latency statistics, and rule-based diagnostic advice.")
         lbl_card_sub.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 12px;")
         info_box.addWidget(lbl_card_title)
@@ -70,12 +70,12 @@ class ReportsPage(QWidget):
         a_layout.addLayout(info_box)
         a_layout.addStretch()
 
-        self.btn_pdf = QPushButton("📄  Generate PDF Report")
+        self.btn_pdf = QPushButton("Generate PDF Report")
         self.btn_pdf.setProperty("class", "PrimaryButton")
         self.btn_pdf.clicked.connect(self.request_export_pdf.emit)
         a_layout.addWidget(self.btn_pdf)
 
-        self.btn_csv = QPushButton("📊  Export Raw CSV")
+        self.btn_csv = QPushButton("Export Raw CSV")
         self.btn_csv.setProperty("class", "SecondaryButton")
         self.btn_csv.clicked.connect(self.request_export_csv.emit)
         a_layout.addWidget(self.btn_csv)
@@ -94,7 +94,7 @@ class ReportsPage(QWidget):
         r_layout.setContentsMargins(16, 14, 16, 14)
 
         lbl_recs_hdr = QLabel("Current Rule-Based Diagnostic Recommendations")
-        lbl_recs_hdr.setStyleSheet("font-size: 14px; font-weight: 700; color: #38bdf8;")
+        lbl_recs_hdr.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['primary']};")
         r_layout.addWidget(lbl_recs_hdr)
 
         self.table_recs = QTableWidget()
@@ -138,7 +138,7 @@ class ReportsPage(QWidget):
 
     def on_export_completed(self, file_path: Path, format_type: str):
         """Notification callback after export completes."""
-        self.lbl_status.setText(f"✓ {format_type.upper()} successfully saved to: {file_path.name}")
+        self.lbl_status.setText(f"{format_type.upper()} successfully saved to: {file_path.name}")
         self.lbl_status.setStyleSheet(f"color: {COLORS['success']}; font-weight: 600;")
         QMessageBox.information(
             self,

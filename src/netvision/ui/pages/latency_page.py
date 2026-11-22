@@ -91,7 +91,7 @@ class LatencyPage(QWidget):
         header_layout.addWidget(self.combo_location)
 
         # Start / Stop Toggle
-        self.btn_toggle = QPushButton("▶  Start Probing")
+        self.btn_toggle = QPushButton("Start Probing")
         self.btn_toggle.setProperty("class", "PrimaryButton")
         self.btn_toggle.clicked.connect(self._on_toggle_clicked)
         header_layout.addWidget(self.btn_toggle)
@@ -158,7 +158,7 @@ class LatencyPage(QWidget):
             loc = self.combo_location.currentText().strip() or "Default"
             method = self.combo_method.currentData() or "ICMP"
             self.is_monitoring = True
-            self.btn_toggle.setText("⏹  Stop Probing")
+            self.btn_toggle.setText("Stop Probing")
             self.btn_toggle.setProperty("class", "DangerButton")
             self.btn_toggle.setStyle(self.btn_toggle.style())
 
@@ -171,7 +171,7 @@ class LatencyPage(QWidget):
             self.request_start_ping.emit(host, count, loc, method)
         else:
             self.btn_toggle.setEnabled(False)
-            self.btn_toggle.setText("⏹  Stopping...")
+            self.btn_toggle.setText("Stopping...")
             self.lbl_status.setText("Stopping latency probes...")
             self.request_stop_ping.emit()
 
@@ -204,7 +204,7 @@ class LatencyPage(QWidget):
         """Called upon completion of all probes."""
         self.is_monitoring = False
         self.btn_toggle.setEnabled(True)
-        self.btn_toggle.setText("▶  Start Probing")
+        self.btn_toggle.setText("Start Probing")
         self.btn_toggle.setProperty("class", "PrimaryButton")
         self.btn_toggle.setStyle(self.btn_toggle.style())
         self.progress_bar.setValue(self.progress_bar.maximum())

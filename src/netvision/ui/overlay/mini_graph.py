@@ -1,7 +1,7 @@
 """
 NetVision - High-Performance QPainter Sparkline Mini Graph Widget
 Renders real-time telemetry graphs with anti-aliasing, gradient area fill,
-and genuine transparency (no forced opaque blue rectangular boxes).
+monospace readings, and genuine transparency (no forced opaque blue rectangular boxes).
 """
 
 from typing import List, Optional
@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import (
     QPainter, QPen, QBrush, QColor, QLinearGradient, QFont, QPaintEvent
 )
+from netvision.config import COLORS
 
 
 class MiniGraphWidget(QWidget):
@@ -22,7 +23,7 @@ class MiniGraphWidget(QWidget):
         self,
         title: str = "",
         unit: str = "",
-        color: str = "#38bdf8",
+        color: str = "#22B8CF",
         scale_mode: str = "auto",
         min_val: float = 0.0,
         max_val: float = 100.0,
@@ -83,11 +84,11 @@ class MiniGraphWidget(QWidget):
 
         # Only draw background if transparent_bg is explicitly disabled
         if not self.transparent_bg:
-            bg_color = QColor(15, 23, 42, 210)
+            bg_color = QColor(16, 21, 28, 220)
             painter.fillRect(0, 0, w, h, bg_color)
-            border_pen = QPen(QColor(51, 65, 85, 180), 1)
+            border_pen = QPen(QColor(30, 42, 56, 180), 1)
             painter.setPen(border_pen)
-            painter.drawRoundedRect(0, 0, w - 1, h - 1, 6, 6)
+            painter.drawRoundedRect(0, 0, w - 1, h - 1, 4, 4)
 
         # Header: Title on left, Value on right
         font_title = QFont("Segoe UI", 9, QFont.Bold)
@@ -98,10 +99,10 @@ class MiniGraphWidget(QWidget):
             painter.setPen(QColor(0, 0, 0, 200))
             painter.drawText(9, 17, self.title)
 
-        painter.setPen(QColor(226, 232, 240))
+        painter.setPen(QColor(213, 222, 232))
         painter.drawText(8, 16, self.title)
 
-        font_val = QFont("Segoe UI", 9, QFont.Bold)
+        font_val = QFont("Consolas", 9, QFont.Bold)
         painter.setFont(font_val)
 
         if self._display_override:
@@ -135,7 +136,7 @@ class MiniGraphWidget(QWidget):
             return
 
         # Subtle Guideline
-        grid_pen = QPen(QColor(148, 163, 184, 50), 1, Qt.DashLine)
+        grid_pen = QPen(QColor(130, 145, 163, 40), 1, Qt.DashLine)
         painter.setPen(grid_pen)
         mid_y = top_y + (plot_h / 2.0)
         painter.drawLine(pad_x, int(mid_y), w - pad_x, int(mid_y))
@@ -172,9 +173,9 @@ class MiniGraphWidget(QWidget):
         # 1. Gradient Fill under sparkline
         grad = QLinearGradient(0, top_y, 0, bot_y)
         c_top = QColor(self.color_hex)
-        c_top.setAlpha(60)
+        c_top.setAlpha(50)
         c_bot = QColor(self.color_hex)
-        c_bot.setAlpha(5)
+        c_bot.setAlpha(4)
         grad.setColorAt(0.0, c_top)
         grad.setColorAt(1.0, c_bot)
 

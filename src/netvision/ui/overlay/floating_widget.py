@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QColor, QFont, QMouseEvent, QPainter, QPen, QPaintEvent
 )
 
+from netvision.config import COLORS
 from netvision.core.overlay_config import StatItemConfig, DisplayMode
 from netvision.ui.overlay.mini_graph import MiniGraphWidget
 
@@ -21,7 +22,7 @@ from netvision.ui.overlay.mini_graph import MiniGraphWidget
 class FloatingStatWidget(QWidget):
     """
     Independent floating desktop widget displaying a single statistic.
-    Features genuine transparency, crisp text shadows, and desktop lock.
+    Features genuine transparency, crisp monospace text, text shadows, and desktop lock.
     """
 
     position_changed = Signal(str, int, int)
@@ -55,7 +56,7 @@ class FloatingStatWidget(QWidget):
         self.lbl_title = QLabel(self.item.name, self)
         font_title = QFont("Segoe UI", max(8, self.item.font_size - 3), QFont.Bold)
         self.lbl_title.setFont(font_title)
-        self.lbl_title.setStyleSheet("color: #cbd5e1; background: transparent; border: none;")
+        self.lbl_title.setStyleSheet(f"color: {COLORS['text_secondary']}; background: transparent; border: none;")
         self.layout_box.addWidget(self.lbl_title)
 
         # Title text drop shadow for legibility over light wallpapers/games
@@ -65,9 +66,9 @@ class FloatingStatWidget(QWidget):
         shadow_title.setOffset(1, 1)
         self.lbl_title.setGraphicsEffect(shadow_title)
 
-        # 2. Value Label
+        # 2. Value Label with Monospace Font
         self.lbl_val = QLabel("--", self)
-        font_val = QFont("Segoe UI", self.item.font_size, QFont.Bold)
+        font_val = QFont("Consolas", self.item.font_size, QFont.Bold)
         self.lbl_val.setFont(font_val)
         self.lbl_val.setStyleSheet(f"color: {self.item.color}; background: transparent; border: none;")
         self.layout_box.addWidget(self.lbl_val)
@@ -93,7 +94,7 @@ class FloatingStatWidget(QWidget):
 
         # Typography & Colors
         self.lbl_title.setFont(QFont("Segoe UI", max(8, self.item.font_size - 3), QFont.Bold))
-        self.lbl_val.setFont(QFont("Segoe UI", self.item.font_size, QFont.Bold))
+        self.lbl_val.setFont(QFont("Consolas", self.item.font_size, QFont.Bold))
         self.lbl_val.setStyleSheet(f"color: {self.item.color}; background: transparent; border: none;")
 
         # Mode switching
@@ -144,6 +145,6 @@ class FloatingStatWidget(QWidget):
         # Only draw background if the user explicitly enabled subtle background tint
         if self.item.show_subtle_bg and self.item.bg_opacity > 0:
             bg_alpha = int(self.item.bg_opacity * 255)
-            painter.fillRect(0, 0, w, h, QColor(15, 23, 42, bg_alpha))
-            painter.setPen(QPen(QColor(51, 65, 85, max(30, bg_alpha)), 1))
+            painter.fillRect(0, 0, w, h, QColor(16, 21, 28, bg_alpha))
+            painter.setPen(QPen(QColor(30, 42, 56, max(30, bg_alpha)), 1))
             painter.drawRoundedRect(0, 0, w - 1, h - 1, self.item.border_radius, self.item.border_radius)

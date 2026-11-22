@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
+from PySide6.QtGui import QColor
 from netvision.database.models import WifiNetwork
 from netvision.config import COLORS
 
@@ -53,7 +54,7 @@ class ScannerPage(QWidget):
         self.combo_location.setMinimumWidth(160)
         header_layout.addWidget(self.combo_location)
 
-        self.btn_scan = QPushButton("🔍 Scan Networks")
+        self.btn_scan = QPushButton("Scan Networks")
         self.btn_scan.setProperty("class", "PrimaryButton")
         self.btn_scan.clicked.connect(self._on_scan_clicked)
         header_layout.addWidget(self.btn_scan)
@@ -188,24 +189,24 @@ class ScannerPage(QWidget):
             status_text = "● Connected" if net.is_connected else "Available"
             status_item = QTableWidgetItem(status_text)
             if net.is_connected:
-                status_item.setForeground(Qt.cyan)
+                status_item.setForeground(QColor(COLORS['primary']))
 
             ssid_item = QTableWidgetItem(net.ssid)
             if net.is_connected:
-                ssid_item.setForeground(Qt.cyan)
+                ssid_item.setForeground(QColor(COLORS['primary']))
 
             sig_item = QTableWidgetItem(f"{net.signal_percent}%")
             cat_item = QTableWidgetItem(net.signal_category)
 
             # Signal color coding
             if net.signal_percent >= 75:
-                cat_item.setForeground(Qt.green)
+                cat_item.setForeground(QColor(COLORS['success']))
             elif net.signal_percent >= 50:
-                cat_item.setForeground(Qt.cyan)
+                cat_item.setForeground(QColor(COLORS['primary']))
             elif net.signal_percent >= 30:
-                cat_item.setForeground(Qt.yellow)
+                cat_item.setForeground(QColor(COLORS['warning']))
             else:
-                cat_item.setForeground(Qt.red)
+                cat_item.setForeground(QColor(COLORS['danger']))
 
             ch_item = QTableWidgetItem(str(net.channel) if net.channel > 0 else "--")
             band_item = QTableWidgetItem(net.frequency_band)

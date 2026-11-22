@@ -124,32 +124,39 @@ DEFAULT_SPEED_SERVERS = [
     }
 ]
 
-# Dark Theme Color Palette
+# Dark Theme Color Palette — Professional Network Instrumentation
 COLORS = {
-    "bg_dark": "#0f172a",       # Slate 900
-    "bg_surface": "#1e293b",    # Slate 800
-    "bg_surface_hover": "#334155", # Slate 700
-    "border": "#334155",        # Slate 700
-    "border_light": "#475569",  # Slate 600
-    
-    "text_primary": "#f8fafc",   # Slate 50
-    "text_secondary": "#94a3b8", # Slate 400
-    "text_muted": "#64748b",     # Slate 500
-    
-    "primary": "#38bdf8",        # Sky 400
-    "primary_dark": "#0284c7",   # Sky 600
-    
-    "success": "#34d399",        # Emerald 400
-    "success_bg": "rgba(52, 211, 153, 0.12)",
-    
-    "warning": "#fbbf24",        # Amber 400
-    "warning_bg": "rgba(251, 191, 36, 0.12)",
-    
-    "danger": "#f87171",         # Rose 400
-    "danger_bg": "rgba(248, 113, 113, 0.12)",
-    
-    "info": "#818cf8",           # Indigo 400
-    "info_bg": "rgba(129, 140, 248, 0.12)",
-    
-    "purple": "#c084fc",         # Violet 400
+    "bg_dark": "#10151C",          # Main application background
+    "bg_surface": "#151D27",       # Secondary panels, sidebars
+    "bg_elevated": "#1C2632",      # Elevated surfaces, cards
+    "bg_input": "#0E1319",         # Input field backgrounds
+    "bg_surface_hover": "#232F3E", # Hover state for surfaces
+
+    "border": "#1E2A38",           # Subtle structural borders
+    "border_light": "#2A3A4C",     # Slightly visible separators
+    "border_focus": "#22B8CF",     # Focus ring accent
+
+    "text_primary": "#D5DEE8",     # Main readable text
+    "text_secondary": "#8291A3",   # Labels, descriptions
+    "text_muted": "#5A6B7F",       # Inactive, placeholder text
+    "text_bright": "#F0F4F8",      # High-emphasis headings
+
+    "primary": "#22B8CF",          # Primary accent (teal)
+    "primary_dark": "#1A8FA0",     # Darker primary variant
+    "primary_subtle": "rgba(34, 184, 207, 0.12)",  # Primary tinted bg
+
+    "success": "#39D98A",          # Healthy / excellent status
+    "success_bg": "rgba(57, 217, 138, 0.10)",
+    "success_dim": "#2BA06A",
+
+    "warning": "#F5B942",          # Cautionary status
+    "warning_bg": "rgba(245, 185, 66, 0.10)",
+
+    "danger": "#F06464",           # Critical / poor status
+    "danger_bg": "rgba(240, 100, 100, 0.10)",
+
+    "info": "#7C8CF5",             # Informational accent
+    "info_bg": "rgba(124, 140, 245, 0.10)",
+
+    "purple": "#B07CFA",           # Secondary decorative accent
 }

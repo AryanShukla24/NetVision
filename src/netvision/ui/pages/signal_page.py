@@ -70,7 +70,7 @@ class SignalPage(QWidget):
         header_layout.addWidget(self.spin_interval)
 
         # Start / Stop Toggle
-        self.btn_toggle = QPushButton("▶  Start Monitoring")
+        self.btn_toggle = QPushButton("Start Monitoring")
         self.btn_toggle.setProperty("class", "PrimaryButton")
         self.btn_toggle.clicked.connect(self._on_toggle_clicked)
         header_layout.addWidget(self.btn_toggle)
@@ -134,13 +134,13 @@ class SignalPage(QWidget):
             loc = self.combo_location.currentText().strip() or "Default"
             interval = self.spin_interval.value()
             self.is_monitoring = True
-            self.btn_toggle.setText("⏹  Stop Monitoring")
+            self.btn_toggle.setText("Stop Monitoring")
             self.btn_toggle.setProperty("class", "DangerButton")
             self.btn_toggle.setStyle(self.btn_toggle.style())  # Refresh stylesheet
             self.request_start_monitoring.emit(loc, interval)
         else:
             self.is_monitoring = False
-            self.btn_toggle.setText("▶  Start Monitoring")
+            self.btn_toggle.setText("Start Monitoring")
             self.btn_toggle.setProperty("class", "PrimaryButton")
             self.btn_toggle.setStyle(self.btn_toggle.style())
             self.request_stop_monitoring.emit()

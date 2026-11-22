@@ -47,7 +47,7 @@ class HistoryPage(QWidget):
         header_layout.addLayout(title_box)
         header_layout.addStretch()
 
-        self.btn_refresh = QPushButton("⟳  Refresh Records")
+        self.btn_refresh = QPushButton("Refresh Records")
         self.btn_refresh.setProperty("class", "SecondaryButton")
         self.btn_refresh.clicked.connect(self.request_refresh.emit)
         header_layout.addWidget(self.btn_refresh)

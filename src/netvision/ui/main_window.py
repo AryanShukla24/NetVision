@@ -123,8 +123,8 @@ class MainWindow(QMainWindow):
         header_frame = QFrame()
         header_frame.setObjectName("SidebarHeader")
         h_layout = QVBoxLayout(header_frame)
-        h_layout.setContentsMargins(8, 0, 8, 12)
-        h_layout.setSpacing(2)
+        h_layout.setContentsMargins(10, 8, 10, 12)
+        h_layout.setSpacing(3)
 
         lbl_title = QLabel(APP_NAME)
         lbl_title.setObjectName("SidebarAppTitle")
@@ -138,18 +138,18 @@ class MainWindow(QMainWindow):
 
         # Nav Buttons List
         nav_items = [
-            ("📊 Dashboard", 0),
-            ("📡 Wi-Fi Scanner", 1),
-            ("📶 Signal Analyzer", 2),
-            ("🚀 Speed Test", 3),
-            ("⏱ Latency Monitor", 4),
-            ("📻 Channel Analyzer", 5),
-            ("📈 History & Analytics", 6),
-            ("📍 Location Comparison", 7),
-            ("🔬 Academic Experiment", 8),
-            ("📄 Audit Reports", 9),
-            ("⚙ Settings", 10),
-            ("ℹ About NetVision", 11),
+            ("Dashboard", 0),
+            ("Wi-Fi Scanner", 1),
+            ("Signal Analyzer", 2),
+            ("Speed Test", 3),
+            ("Latency Monitor", 4),
+            ("Channel Analyzer", 5),
+            ("History & Analytics", 6),
+            ("Location Comparison", 7),
+            ("Academic Experiment", 8),
+            ("Audit Reports", 9),
+            ("Settings", 10),
+            ("About NetVision", 11),
         ]
 
         for text, index in nav_items:
@@ -536,7 +536,7 @@ class MainWindow(QMainWindow):
         else:
             self.page_latency.is_monitoring = False
             self.page_latency.btn_toggle.setEnabled(True)
-            self.page_latency.btn_toggle.setText("▶  Start Probing")
+            self.page_latency.btn_toggle.setText("Start Probing")
             self.page_latency.btn_toggle.setProperty("class", "PrimaryButton")
             self.page_latency.btn_toggle.setStyle(self.page_latency.btn_toggle.style())
 

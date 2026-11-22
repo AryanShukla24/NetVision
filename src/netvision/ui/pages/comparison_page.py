@@ -51,7 +51,7 @@ class ComparisonPage(QWidget):
         self.btn_select_all.clicked.connect(self._select_all_locations)
         header_layout.addWidget(self.btn_select_all)
 
-        self.btn_refresh = QPushButton("⟳ Compare Selected")
+        self.btn_refresh = QPushButton("Compare Selected")
         self.btn_refresh.setProperty("class", "PrimaryButton")
         self.btn_refresh.clicked.connect(self._on_compare_clicked)
         header_layout.addWidget(self.btn_refresh)

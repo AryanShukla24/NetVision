@@ -65,12 +65,12 @@ class DashboardPage(QWidget):
         header_layout.addLayout(title_box)
         header_layout.addStretch()
 
-        self.btn_refresh = QPushButton("⟳  Refresh Link")
+        self.btn_refresh = QPushButton("Refresh Link")
         self.btn_refresh.setProperty("class", "SecondaryButton")
         self.btn_refresh.clicked.connect(self.request_refresh.emit)
         header_layout.addWidget(self.btn_refresh)
 
-        self.btn_quick_test = QPushButton("⚡ Quick Network Test")
+        self.btn_quick_test = QPushButton("Quick Test")
         self.btn_quick_test.setProperty("class", "PrimaryButton")
         self.btn_quick_test.clicked.connect(self.request_quick_test.emit)
         header_layout.addWidget(self.btn_quick_test)
@@ -81,11 +81,11 @@ class DashboardPage(QWidget):
         hero_card = QFrame()
         hero_card.setProperty("class", "ContentCard")
         hero_layout = QHBoxLayout(hero_card)
-        hero_layout.setContentsMargins(20, 16, 20, 16)
+        hero_layout.setContentsMargins(18, 14, 18, 14)
 
         left_hero = QVBoxLayout()
         self.lbl_connected_ssid = QLabel("Connected: Scanning...")
-        self.lbl_connected_ssid.setStyleSheet("font-size: 18px; font-weight: 700; color: #f8fafc;")
+        self.lbl_connected_ssid.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {COLORS['text_bright']};")
         self.lbl_details = QLabel("Interface: Unknown | Band: Unknown | Channel: -- | IP: --")
         self.lbl_details.setStyleSheet(f"font-size: 12px; color: {COLORS['text_secondary']};")
         left_hero.addWidget(self.lbl_connected_ssid)
@@ -104,7 +104,7 @@ class DashboardPage(QWidget):
 
         # Metric Cards Grid (6 cards)
         grid = QGridLayout()
-        grid.setSpacing(14)
+        grid.setSpacing(12)
 
         self.card_signal = MetricCard("Wi-Fi Signal Quality", "--", "Signal quality (%)", "%")
         self.card_download = MetricCard("Download Speed", "Not tested", "Latest WAN Throughput", "Mbps")
@@ -127,7 +127,7 @@ class DashboardPage(QWidget):
         tech_card.setProperty("class", "ContentCard")
         tech_layout = QVBoxLayout(tech_card)
         tech_title = QLabel("Active Radio & Gateway Parameters")
-        tech_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #f8fafc;")
+        tech_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['text_bright']};")
         tech_layout.addWidget(tech_title)
 
         tech_grid = QGridLayout()

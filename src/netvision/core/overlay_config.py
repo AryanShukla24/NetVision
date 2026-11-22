@@ -49,8 +49,8 @@ class StatItemConfig:
     show_subtle_bg: bool = False     # When False, background is genuinely transparent
     show_shadow: bool = True         # Subtle text shadow for high contrast & legibility
     border_radius: int = 6
-    text_color: str = "#f8fafc"
-    color: str = "#38bdf8"           # Accent / Graph color
+    text_color: str = "#D5DEE8"
+    color: str = "#22B8CF"           # Accent / Graph color
     
     # Numerical style controls
     font_size: int = 13
@@ -97,7 +97,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="FPS",
             x=1160, y=20, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#34d399",
+            color="#39D98A",
             shortcut=""
         ),
         "ping": StatItemConfig(
@@ -108,7 +108,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="ms",
             x=1160, y=95, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#fbbf24",
+            color="#F5B942",
             shortcut=""
         ),
         "wifi_signal": StatItemConfig(
@@ -119,7 +119,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="%",
             x=1160, y=170, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#34d399",
+            color="#39D98A",
             shortcut=""
         ),
 
@@ -133,7 +133,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             x=20, y=20, width=180, height=65,
             graph_width=240, graph_height=110,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
-            color="#38bdf8",
+            color="#22B8CF",
             shortcut=""
         ),
         "gpu": StatItemConfig(
@@ -145,7 +145,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             x=20, y=140, width=180, height=65,
             graph_width=240, graph_height=110,
             graph_scale_mode="fixed", graph_min=0.0, graph_max=100.0,
-            color="#a78bfa",
+            color="#B07CFA",
             shortcut=""
         ),
         "ram": StatItemConfig(
@@ -156,7 +156,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="%",
             x=20, y=260, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#f472b6",
+            color="#F5B942",
             shortcut=""
         ),
 
@@ -169,7 +169,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="KB/s",
             x=1160, y=680, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#38bdf8",
+            color="#22B8CF",
             shortcut=""
         ),
         "download_speed": StatItemConfig(
@@ -180,7 +180,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="Mbps",
             x=1160, y=605, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#60a5fa",
+            color="#22B8CF",
             shortcut=""
         ),
         "upload_speed": StatItemConfig(
@@ -191,7 +191,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="Mbps",
             x=1160, y=530, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#818cf8",
+            color="#7C8CF5",
             shortcut=""
         ),
 
@@ -204,7 +204,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="ms",
             x=20, y=680, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#f97316",
+            color="#F5B942",
             shortcut=""
         ),
         "packet_loss": StatItemConfig(
@@ -215,7 +215,7 @@ def get_default_stats_catalog() -> Dict[str, StatItemConfig]:
             unit="%",
             x=20, y=605, width=180, height=65,
             graph_width=240, graph_height=110,
-            color="#f87171",
+            color="#F06464",
             shortcut=""
         ),
     }

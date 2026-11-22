@@ -1,7 +1,7 @@
 """
 NetVision - Status Pill Widget
-Renders a colored badge indicating network health status:
-Excellent (Green), Good (Blue), Fair (Amber), Poor (Red), Disconnected (Gray).
+Renders an engineered badge indicating network health status:
+Excellent (Green), Good (Teal), Fair (Amber), Poor (Red), Disconnected (Muted Gray).
 """
 
 from PySide6.QtWidgets import QLabel
@@ -14,29 +14,29 @@ class StatusPill(QLabel):
 
     STYLE_MAP = {
         "Excellent": {
-            "bg": "rgba(52, 211, 153, 0.15)",
-            "border": "#34d399",
-            "text": "#34d399"
+            "bg": "rgba(57, 217, 138, 0.12)",
+            "border": "#39D98A",
+            "text": "#39D98A"
         },
         "Good": {
-            "bg": "rgba(56, 189, 248, 0.15)",
-            "border": "#38bdf8",
-            "text": "#38bdf8"
+            "bg": "rgba(34, 184, 207, 0.12)",
+            "border": "#22B8CF",
+            "text": "#22B8CF"
         },
         "Fair": {
-            "bg": "rgba(251, 191, 36, 0.15)",
-            "border": "#fbbf24",
-            "text": "#fbbf24"
+            "bg": "rgba(245, 185, 66, 0.12)",
+            "border": "#F5B942",
+            "text": "#F5B942"
         },
         "Poor": {
-            "bg": "rgba(248, 113, 113, 0.15)",
-            "border": "#f87171",
-            "text": "#f87171"
+            "bg": "rgba(240, 100, 100, 0.12)",
+            "border": "#F06464",
+            "text": "#F06464"
         },
         "Disconnected": {
-            "bg": "rgba(100, 116, 139, 0.15)",
-            "border": "#64748b",
-            "text": "#94a3b8"
+            "bg": "rgba(90, 107, 127, 0.15)",
+            "border": "#5A6B7F",
+            "text": "#8291A3"
         }
     }
 
@@ -53,8 +53,8 @@ class StatusPill(QLabel):
                 background-color: {style['bg']};
                 color: {style['text']};
                 border: 1px solid {style['border']};
-                border-radius: 12px;
-                padding: 4px 12px;
+                border-radius: 4px;
+                padding: 3px 10px;
                 font-weight: 600;
                 font-size: 11px;
             }}

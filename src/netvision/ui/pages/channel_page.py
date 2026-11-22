@@ -42,7 +42,7 @@ class ChannelPage(QWidget):
         header_layout.addLayout(title_box)
         header_layout.addStretch()
 
-        self.btn_refresh = QPushButton("⟳  Analyze Spectrum")
+        self.btn_refresh = QPushButton("Analyze Spectrum")
         self.btn_refresh.setProperty("class", "PrimaryButton")
         self.btn_refresh.clicked.connect(self.request_refresh.emit)
         header_layout.addWidget(self.btn_refresh)
@@ -56,7 +56,7 @@ class ChannelPage(QWidget):
         banner_layout.setContentsMargins(16, 12, 16, 12)
 
         self.lbl_rec_title = QLabel("RF Channel Optimization Advice")
-        self.lbl_rec_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #38bdf8;")
+        self.lbl_rec_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['primary']};")
         self.lbl_rec_body = QLabel(
             "Scan nearby networks to discover which Wi-Fi channels have the least co-channel interference. "
             "Note: Actual channel switching must be performed via your router's administration web interface."

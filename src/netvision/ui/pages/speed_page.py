@@ -56,12 +56,12 @@ class SpeedPage(QWidget):
         header_layout.addWidget(self.combo_location)
 
         # Start / Stop Buttons
-        self.btn_start = QPushButton("🚀  Start Speed Test")
+        self.btn_start = QPushButton("Start Speed Test")
         self.btn_start.setProperty("class", "PrimaryButton")
         self.btn_start.clicked.connect(self._on_start_clicked)
         header_layout.addWidget(self.btn_start)
 
-        self.btn_stop = QPushButton("⏹  Stop Test")
+        self.btn_stop = QPushButton("Stop Test")
         self.btn_stop.setProperty("class", "DangerButton")
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self._on_stop_clicked)
@@ -157,7 +157,7 @@ class SpeedPage(QWidget):
         self.progress_bar.setValue(100 if result.status == "completed" else 0)
 
         if result.status == "completed":
-            self.lbl_phase.setText(f"✓ Test completed successfully in {result.duration_sec or 0.0:.1f}s.")
+            self.lbl_phase.setText(f"Test completed successfully in {result.duration_sec or 0.0:.1f}s.")
             self.lbl_phase.setStyleSheet(f"color: {COLORS['success']}; font-weight: 600;")
             
             d_val = f"{result.download_mbps:.1f}" if result.download_mbps is not None else "—"

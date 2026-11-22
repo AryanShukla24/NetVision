@@ -55,7 +55,7 @@ class AboutPage(QWidget):
         card_overview.setProperty("class", "ContentCard")
         o_layout = QVBoxLayout(card_overview)
         o_title = QLabel("System Architecture & Diagnostic Capabilities")
-        o_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #38bdf8;")
+        o_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['primary']};")
         o_layout.addWidget(o_title)
 
         summary_text = (
@@ -79,7 +79,7 @@ class AboutPage(QWidget):
         card_telemetry.setProperty("class", "ContentCard")
         t_layout = QVBoxLayout(card_telemetry)
         t_title = QLabel("Runtime Environment & Host Telemetry")
-        t_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #34d399;")
+        t_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['success']};")
         t_layout.addWidget(t_title)
 
         telemetry_grid = QGridLayout()
@@ -112,7 +112,7 @@ class AboutPage(QWidget):
         card_credits.setProperty("class", "ContentCard")
         cr_layout = QVBoxLayout(card_credits)
         cr_title = QLabel("Software Components & Open Source Credits")
-        cr_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #a855f7;")
+        cr_title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {COLORS['purple']};")
         cr_layout.addWidget(cr_title)
 
         credits_text = (

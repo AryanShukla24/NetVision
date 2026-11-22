@@ -115,12 +115,12 @@ class ExperimentPage(QWidget):
 
         # Action buttons
         btn_box = QHBoxLayout()
-        self.btn_run = QPushButton("⚡ Execute Repeated Experiment")
+        self.btn_run = QPushButton("Execute Repeated Experiment")
         self.btn_run.setProperty("class", "PrimaryButton")
         self.btn_run.clicked.connect(self._on_run_clicked)
         btn_box.addWidget(self.btn_run)
 
-        self.btn_stop = QPushButton("⏹ Stop")
+        self.btn_stop = QPushButton("Stop")
         self.btn_stop.setProperty("class", "DangerButton")
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self._on_stop_clicked)
@@ -190,7 +190,7 @@ class ExperimentPage(QWidget):
         self.table.setMaximumHeight(150)
         l_live.addWidget(self.table)
 
-        self.tabs.addTab(tab_live, "🔬 Live Experiment Execution")
+        self.tabs.addTab(tab_live, "Live Experiment Execution")
 
         # --- Tab 2: Saved Experiments Archive ---
         tab_archive = QWidget()
@@ -204,7 +204,7 @@ class ExperimentPage(QWidget):
         arch_hdr.addWidget(arch_lbl)
         arch_hdr.addStretch()
 
-        self.btn_refresh_archive = QPushButton("⟳ Refresh Archive")
+        self.btn_refresh_archive = QPushButton("Refresh Archive")
         self.btn_refresh_archive.setProperty("class", "SecondaryButton")
         self.btn_refresh_archive.clicked.connect(self.request_load_saved_experiments.emit)
         arch_hdr.addWidget(self.btn_refresh_archive)
@@ -223,7 +223,7 @@ class ExperimentPage(QWidget):
         self.table_archive.setEditTriggers(QTableWidget.NoEditTriggers)
         l_arch.addWidget(self.table_archive)
 
-        self.tabs.addTab(tab_archive, "📁 Saved Experiments Archive")
+        self.tabs.addTab(tab_archive, "Saved Experiments Archive")
 
         main_layout.addWidget(self.tabs)
 
@@ -289,10 +289,10 @@ class ExperimentPage(QWidget):
         self.btn_stop.setEnabled(False)
 
         if was_completed:
-            self.lbl_status.setText(f"✓ Experiment completed. Collected {len(self.current_runs)} empirical trial measurements.")
+            self.lbl_status.setText(f"Experiment completed. Collected {len(self.current_runs)} empirical trial measurements.")
             self.lbl_status.setStyleSheet(f"color: {COLORS['success']}; font-weight: 600;")
         else:
-            self.lbl_status.setText(f"⏹ Experiment stopped. Collected {len(self.current_runs)} partial measurements.")
+            self.lbl_status.setText(f"Experiment stopped. Collected {len(self.current_runs)} partial measurements.")
             self.lbl_status.setStyleSheet(f"color: {COLORS['warning']}; font-weight: 600;")
 
         self._update_analytics()

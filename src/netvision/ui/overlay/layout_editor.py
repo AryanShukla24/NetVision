@@ -562,7 +562,7 @@ class OverlayLayoutEditor(QWidget):
         # Left / Center: Scrollable Canvas
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("background-color: #0f172a; border: 1px solid #334155; border-radius: 6px;")
+        scroll.setStyleSheet(f"background-color: {COLORS['bg_dark']}; border: 1px solid {COLORS['border']}; border-radius: 4px;")
         self.canvas = EditorCanvasWidget(self.config)
         self.canvas.item_selected.connect(self._on_item_selected)
         self.canvas.layout_changed.connect(self._on_canvas_layout_changed)
@@ -587,7 +587,7 @@ class OverlayLayoutEditor(QWidget):
         layout.setSpacing(10)
 
         p_title = QLabel("Statistic Properties")
-        p_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #38bdf8;")
+        p_title.setStyleSheet(f"font-size: 13px; font-weight: 700; color: {COLORS['primary']};")
         layout.addWidget(p_title)
 
         self.lbl_prop_item = QLabel("Select a statistic to customize")
